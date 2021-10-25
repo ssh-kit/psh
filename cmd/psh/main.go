@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"os/signal"
@@ -13,8 +12,9 @@ import (
 	"github.com/iand/logfmtr"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/peterbourgon/ff/v3/ffyaml"
-
+	"github.com/ssh-kit/psh"
 	"github.com/ssh-kit/psh/ssh"
+	"gopkg.in/yaml.v2"
 )
 
 func main() {
@@ -83,6 +83,13 @@ func (m *Main) ParseFlags(ctx context.Context, args []string) error {
 }
 
 func (m *Main) Run(ctx context.Context) error {
+	if m.version {
+		fmt.Fprintf(os.Stdout, "Version: %s\n", psh.Version)
+		os.Exit(0)
+	}
+
+	logfmtr.SetVerbosity(m.verbose)
+
 	yamlFile, err := ioutil.ReadFile(m.config)
 	err = yaml.Unmarshal(yamlFile, m.SSH.Config)
 	if err != nil {
@@ -90,6 +97,11 @@ func (m *Main) Run(ctx context.Context) error {
 		fmt.Printf("%s", m.config)
 		return fmt.Errorf("Unmarshal: %v\n", err)
 	}
+
+	m.Logger.WithName("main").Info("started",
+		"verbose", m.verbose,
+		"config", m.config,
+	)
 
 	if err = m.SSH.Run(ctx); err != nil {
 		return err

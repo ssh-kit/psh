@@ -2,12 +2,15 @@ package ssh
 
 import (
 	"context"
+	"net"
+	"time"
+
 	"github.com/go-logr/logr"
 	"golang.org/x/crypto/ssh"
 	"inet.af/tcpproxy"
-	"log"
-	"net"
 )
+
+const DefaultTime = time.Second * 5
 
 type SSH struct {
 	Config *Config
@@ -49,22 +52,36 @@ func (s *SSH) Run(ctx context.Context) error {
 
 		conn, err := ssh.Dial("tcp", c.Host, config)
 		if err != nil {
-			log.Fatalf("%s unable to connect: %s", c.Host, err)
+			s.logger.Error(err, "connect",
+				"host", c.Host,
+				"retry", DefaultTime,
+			)
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(DefaultTime):
+				continue
+			}
 		}
 
 		// run remote listen and proxy for each rule
-		go s.run(conn)
+
+		closed := make(chan error, 1)
 		go func() {
-			defer conn.Close()
-			<-ctx.Done()
-			log.Fatalln("interrupt!")
+			closed <- conn.Wait()
 		}()
 
-		if err := conn.Wait(); err != nil {
-			s.logger.Error(err, "tcp listen",
+		go s.run(conn)
+
+		select {
+		case <-ctx.Done():
+			return conn.Close()
+		case err = <-closed:
+			s.logger.Error(err, "connect",
 				"Host", c.Host,
+				"retry", DefaultTime,
 			)
-			continue
+			time.Sleep(DefaultTime)
 		}
 	}
 }
@@ -75,10 +92,13 @@ func (s *SSH) run(conn *ssh.Client) {
 			// open remote listen
 			l, err := conn.Listen("tcp", rule.Remote)
 			if err != nil {
-				s.logger.Error(err, "unable to register tcp forward")
-				break
+				s.logger.Error(err, "forward",
+					"remote", rule.Remote,
+				)
+				time.Sleep(DefaultTime)
+				continue
 			}
-			s.logger.V(0).Info("register tcp forward",
+			s.logger.V(1).Info("forward",
 				"remote", rule.Remote,
 			)
 
@@ -87,18 +107,26 @@ func (s *SSH) run(conn *ssh.Client) {
 				for {
 					accept, err := l.Accept()
 					if err != nil {
-						s.logger.Error(err, "accept message",
+						s.logger.Error(err, "proxy",
 							"remote", rule.Remote,
+							"local", rule.Local,
+							"retry", DefaultTime,
 						)
-						return
+
+						if conn.Wait().Error() != "" {
+							return
+						}
+
+						time.Sleep(DefaultTime)
+						continue
 					}
+
 					tcpproxy.To(rule.Local).HandleConn(accept)
 					s.logger.V(2).Info("proxy",
 						"remote", rule.Remote,
 						"local", rule.Local,
 					)
 				}
-
 			}(rule, l)
 		}
 	}
