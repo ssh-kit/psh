@@ -60,7 +60,7 @@ func NewMain() *Main {
 	logger := logfmtr.NewWithOptions(opts)
 	return &Main{
 		Logger: logger,
-		SSH:    ssh.NewSSH(logger.WithName("ssh")),
+		SSH:    ssh.NewSSH(logger.WithName("ssh"), ssh.DefaultTime),
 	}
 }
 

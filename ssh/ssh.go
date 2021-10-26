@@ -15,6 +15,7 @@ const DefaultTime = time.Second * 5
 type SSH struct {
 	Config *Config
 	logger logr.Logger
+	retry  time.Duration
 }
 
 type Config struct {
@@ -32,10 +33,11 @@ type Rules struct {
 	Reverse bool   `yaml:"reverse,omitempty"`
 }
 
-func NewSSH(logger logr.Logger) *SSH {
+func NewSSH(logger logr.Logger, retry time.Duration) *SSH {
 	return &SSH{
 		Config: &Config{},
 		logger: logger,
+		retry:  retry,
 	}
 }
 
@@ -54,12 +56,12 @@ func (s *SSH) Run(ctx context.Context) error {
 		if err != nil {
 			s.logger.Error(err, "connect",
 				"host", c.Host,
-				"retry", DefaultTime,
+				"retry", s.retry,
 			)
 			select {
 			case <-ctx.Done():
 				return nil
-			case <-time.After(DefaultTime):
+			case <-time.After(s.retry):
 				continue
 			}
 		}
@@ -69,9 +71,10 @@ func (s *SSH) Run(ctx context.Context) error {
 		closed := make(chan error, 1)
 		go func() {
 			closed <- conn.Wait()
+			conn.Close()
 		}()
 
-		go s.run(conn)
+		go s.run(ctx, conn)
 
 		select {
 		case <-ctx.Done():
@@ -79,55 +82,66 @@ func (s *SSH) Run(ctx context.Context) error {
 		case err = <-closed:
 			s.logger.Error(err, "connect",
 				"Host", c.Host,
-				"retry", DefaultTime,
+				"retry", s.retry,
 			)
-			time.Sleep(DefaultTime)
+			time.Sleep(s.retry)
 		}
 	}
 }
 
-func (s *SSH) run(conn *ssh.Client) {
-	for _, rule := range s.Config.Rules {
-		if rule.Reverse {
-			// open remote listen
-			l, err := conn.Listen("tcp", rule.Remote)
-			if err != nil {
-				s.logger.Error(err, "forward",
+func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
+	for {
+		ch := make(chan error, 1)
+		for _, rule := range s.Config.Rules {
+			if rule.Reverse {
+				// open remote listen
+				l, err := conn.Listen("tcp", rule.Remote)
+				if err != nil {
+					s.logger.Error(err, "forward",
+						"remote", rule.Remote,
+						"retry", s.retry,
+					)
+
+					ch <- err
+					break
+				}
+				s.logger.V(1).Info("forward",
 					"remote", rule.Remote,
 				)
-				time.Sleep(DefaultTime)
-				continue
+
+				// accept message and proxy
+				go s.proxy(conn, l, rule)
 			}
-			s.logger.V(1).Info("forward",
+		}
+		select {
+		case <-ch:
+			time.Sleep(s.retry)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (s *SSH) proxy(conn *ssh.Client, l net.Listener, rule Rules) {
+	dialProxy := tcpproxy.To(rule.Local)
+	dialProxy.DialTimeout = time.Second * 15
+	for {
+		accept, err := l.Accept()
+		if err != nil {
+			s.logger.Error(err, "proxy",
 				"remote", rule.Remote,
+				"local", rule.Local,
+				"retry", s.retry,
 			)
 
-			// accept message and proxy
-			go func(rule Rules, l net.Listener) {
-				for {
-					accept, err := l.Accept()
-					if err != nil {
-						s.logger.Error(err, "proxy",
-							"remote", rule.Remote,
-							"local", rule.Local,
-							"retry", DefaultTime,
-						)
-
-						if conn.Wait().Error() != "" {
-							return
-						}
-
-						time.Sleep(DefaultTime)
-						continue
-					}
-
-					tcpproxy.To(rule.Local).HandleConn(accept)
-					s.logger.V(2).Info("proxy",
-						"remote", rule.Remote,
-						"local", rule.Local,
-					)
-				}
-			}(rule, l)
+			time.Sleep(s.retry)
+			continue
 		}
+
+		dialProxy.HandleConn(accept)
+		s.logger.V(2).Info("proxy",
+			"remote", rule.Remote,
+			"local", rule.Local,
+		)
 	}
 }
