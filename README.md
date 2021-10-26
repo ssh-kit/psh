@@ -4,9 +4,9 @@ Proxy by SSH => psh
 
 ## Develop before
 
-    * Docker
-    * Remote host compute
-    * Config file `psh.yaml`
+    - Docker
+    - Remote host compute
+    - Config file `psh.yaml`
 
 ## psh.yaml template
 
