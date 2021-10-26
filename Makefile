@@ -2,7 +2,7 @@ export GO111MODULE ?= on
 export GOPROXY ?= https://goproxy.cn
 
 GIT_VERSION := $(shell git describe --always --tags)
-BASE_PACKAGE_NAME := github.com/ssh-kit/hsh
+BASE_PACKAGE_NAME := github.com/ssh-kit/psh
 DEFAULT_LDFLAGS := "-X $(BASE_PACKAGE_NAME).Version=$(GIT_VERSION)"
 IMG := hypnostsang/psh:$(GIT_VERSION)
 
