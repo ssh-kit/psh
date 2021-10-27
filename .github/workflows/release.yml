@@ -50,9 +50,8 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
       - name: package
         run: |
-          mv bin/psh bin/psh${{ matrix.goexe }} || echo "need not"
-          mv template/psh.yaml bin/psh.yaml
-          tar -zcvf psh_${{ matrix.goos }}_${{ matrix.goarch }}.tgz -C bin .
+          mv bin/psh template/psh${{ matrix.goexe }}
+          tar -zcvf psh_${{ matrix.goos }}_${{ matrix.goarch }}.tgz -C template .
       - name: upload
         uses: actions/upload-release-asset@v1
         env:
