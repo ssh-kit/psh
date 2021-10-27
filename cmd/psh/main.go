@@ -93,8 +93,6 @@ func (m *Main) Run(ctx context.Context) error {
 	yamlFile, err := ioutil.ReadFile(m.config)
 	err = yaml.Unmarshal(yamlFile, m.SSH.Config)
 	if err != nil {
-		fmt.Printf("%+v", &m.SSH.Config)
-		fmt.Printf("%s", m.config)
 		return fmt.Errorf("Unmarshal: %v\n", err)
 	}
 

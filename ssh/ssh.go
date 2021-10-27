@@ -98,6 +98,7 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 				l, err := conn.Listen("tcp", rule.Remote)
 				if err != nil {
 					s.logger.Error(err, "forward",
+						"reverse", rule.Reverse,
 						"remote", rule.Remote,
 						"retry", s.retry,
 					)
@@ -105,12 +106,14 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 					ch <- err
 					break
 				}
+
 				s.logger.V(1).Info("forward",
+					"reverse", rule.Reverse,
 					"remote", rule.Remote,
 				)
 
 				// accept message and proxy
-				go s.proxy(conn, l, rule)
+				go s.proxy(l, rule)
 			}
 		}
 		select {
@@ -122,7 +125,7 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 	}
 }
 
-func (s *SSH) proxy(conn *ssh.Client, l net.Listener, rule Rules) {
+func (s *SSH) proxy(l net.Listener, rule Rules) {
 	dialProxy := tcpproxy.To(rule.Local)
 	dialProxy.DialTimeout = time.Second * 15
 	for {
@@ -137,9 +140,17 @@ func (s *SSH) proxy(conn *ssh.Client, l net.Listener, rule Rules) {
 			time.Sleep(s.retry)
 			continue
 		}
+		s.logger.V(2).Info("proxy",
+			"status", "accept",
+			"reverse", rule.Reverse,
+			"remote", rule.Remote,
+			"local", rule.Local,
+		)
 
 		dialProxy.HandleConn(accept)
 		s.logger.V(2).Info("proxy",
+			"status", "finish",
+			"reverse", rule.Reverse,
 			"remote", rule.Remote,
 			"local", rule.Local,
 		)

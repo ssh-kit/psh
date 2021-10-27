@@ -19,49 +19,83 @@ jobs:
           release_name: psh ${{ github.ref }}
           draft: false
           prerelease: false
-  linuxbuild:
+  linux_build:
     name: build psh
     needs: release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Package Version
+        env:
+          BASE_PACKAGE_NAME: github.com/ssh-kit/psh
+          DEFAULT_LDFLAGS: -X ${{ BASE_PACKAGE_NAME }}.Version=${{ github.ref }}
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
           go-version: 1.17.2
       - name: build linux version
-        run: make psh
+        run: go build -v -ldflags=${{ DEFAULT_LDFLAGS }} -o bin/psh ./cmd/psh
       - name: package
-        run: tar -zcvf psh_linux.tgz bin/psh
+        run:  mv template/psh.yaml bin/psh.yaml && tar -zcvf psh_linux_x64.tgz -C bin .
       - name: upload
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: psh_linux.tgz
-          asset_name: psh_linux.tgz
+          asset_path: psh_linux_x64.tgz
+          asset_name: psh_linux_x64.tgz
           asset_content_type: application/gzip
-#
-#  windowsbuild:
-#    runs-on: windows-latest
-#    needs: release
-#    steps:
-#      - uses: actions/checkout@v2
-#      - name: Set up Go
-#        uses: actions/setup-go@v2
-#        with:
-#          go-version: 1.15
-#      - name: build windows version
-#        run: go build -v -o gocapture_windows.exe ./...
-#      - name: package
-#        run: tar -zcvf gocapture_windows.tgz gocapture_windows.exe static templates GeoLite2-City.mmdb
-#      - name: upload
-#        uses: actions/upload-release-asset@v1
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#        with:
-#          upload_url: ${{ needs.release.outputs.upload_url }}
-#          asset_path: gocapture_windows.tgz
-#          asset_name: gocapture_windows.tgz
-#          asset_content_type: application/gzip
+  windows_build:
+    runs-on: windows-latest
+    needs: release
+    steps:
+      - uses: actions/checkout@v2
+      - name: Package Version
+        env:
+          BASE_PACKAGE_NAME: github.com/ssh-kit/psh
+          DEFAULT_LDFLAGS: -X ${{ BASE_PACKAGE_NAME }}.Version=${{ github.ref }}
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17.2
+      - name: build windows version
+        run: go build -v -ldflags=${{ DEFAULT_LDFLAGS }} -o bin/psh.exe ./cmd/psh
+      - name: package
+        run: mv template/psh.yaml bin/psh.yaml && tar -zcvf psh_windows_x64.tgz -C bin .
+      - name: upload
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_path: psh_windows_x64.tgz
+          asset_name: psh_windows_x64.tgz
+          asset_content_type: application/gzip
+  macos_build:
+    name: build psh
+    needs: release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Package Version
+        env:
+          BASE_PACKAGE_NAME: github.com/ssh-kit/psh
+          DEFAULT_LDFLAGS: -X ${{ BASE_PACKAGE_NAME }}.Version=${{ github.ref }}
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17.2
+      - name: build macos version
+        run: go build -v -ldflags=${{ DEFAULT_LDFLAGS }} -o bin/psh ./cmd/psh
+      - name: package
+        run: mv template/psh.yaml bin/psh.yaml && tar -zcvf psh_macos_x64.tgz -C bin .
+      - name: upload
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_path: psh_macos_x64.tgz
+          asset_name: psh_macos_x64.tgz
+          asset_content_type: application/gzip
