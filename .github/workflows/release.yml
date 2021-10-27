@@ -62,9 +62,6 @@ jobs:
       - name: build windows version
         run: go build -v -ldflags=${DEFAULT_LDFLAGS} -o bin/psh.exe ./cmd/psh
       - name: package
-        env:
-          BASE_PACKAGE_NAME: github.com/ssh-kit/psh
-          DEFAULT_LDFLAGS: -X ${{ BASE_PACKAGE_NAME }}.Version=${{ github.ref }}
         run: mv template/psh.yaml bin/psh.yaml && tar -zcvf psh_windows_x64.tgz -C bin .
       - name: upload
         uses: actions/upload-release-asset@v1
