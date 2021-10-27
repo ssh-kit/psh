@@ -3,17 +3,12 @@ on:
   push:
     tags:
       - v*
-env:
-  GIT_VERSION: $(shell git describe --always --tags)
-  BASE_PACKAGE_NAME: git.paratera.net/noops/noops
-  DEFAULT_LDFLAGS: "-X ${BASE_PACKAGE_NAME}.Version=${GIT_VERSION}"
 
 jobs:
   release:
     runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
-      default_ldflags: ${{ steps.create_ldflags.outputs.default_ldflags }}
     steps:
       - name: Create Release
         id: create_release
@@ -25,9 +20,6 @@ jobs:
           release_name: psh ${{ github.ref }}
           draft: false
           prerelease: false
-      - name: Create ldflags
-        id: create_ldflags
-        run: echo "::set-output name=default_ldflags::\"-X github.com/ssh-kit/psh.Version=${GIT_VERSION}\""
   build:
     needs: release
     runs-on: ubuntu-latest
@@ -42,6 +34,9 @@ jobs:
             goos: linux
           - goarch: arm64
             goos: darwin
+          - goarch: amd64
+            goos: windows
+            goexe: .exe
     steps:
       - uses: actions/checkout@v2
       - name: Set up Go
@@ -49,90 +44,20 @@ jobs:
         with:
           go-version: 1.17.2
       - name: build
-        run: go build -v -ldflags=${DEFAULT_LDFLAGS} -o bin/psh ./cmd/psh
+        run: make psh
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
       - name: package
-        run: mv template/psh.yaml bin/psh.yaml && tar -zcvf psh_${GOOS}_${GOARCH}.tgz -C bin .
+        run: |
+          mv bin/psh bin/psh${{ matrix.goexe }} && mv template/psh.yaml bin/psh.yaml
+          tar -zcvf psh_${{ matrix.goos }}_${{ matrix.goarch }}.tgz -C bin .
       - name: upload
-        if: ${{ !env.ACT }}
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: psh_${GOOS}_${GOARCH}.tgz
-          asset_name: psh_${GOOS}_${GOARCH}.tgz
+          asset_path: psh_${{ matrix.goos }}_${{ matrix.goarch }}.tgz
+          asset_name: psh_${{ matrix.goos }}_${{ matrix.goarch }}.tgz
           asset_content_type: application/gzip
-#  linux_build:
-#    name: build psh
-#    needs: release
-#    runs-on: ubuntu-latest
-#    steps:
-#      - uses: actions/checkout@v2
-#      - name: Set up Go
-#        uses: actions/setup-go@v2
-#        with:
-#          go-version: 1.17.2
-#      - name: build linux version
-#        run: go build -v -ldflags=${{ needs.release.outputs.default_ldflags }} -o bin/psh ./cmd/psh
-#      - name: package
-#        run: mv template/psh.yaml bin/psh.yaml && tar -zcvf psh_${{ go env GOOS }}_${{ go env GOARCH }}.tgz -C bin .
-#      - name: upload
-#        if: ${{ !env.ACT }}
-#        uses: actions/upload-release-asset@v1
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#        with:
-#          upload_url: ${{ needs.release.outputs.upload_url }}
-#          asset_path: psh_${{ go env GOOS }}_${{ go env GOARCH }}.tgz
-#          asset_name: psh_${{ go env GOOS }}_${{ go env GOARCH }}.tgz
-#          asset_content_type: application/gzip
-#  windows_build:
-#    runs-on: windows-latest
-#    needs: release
-#    steps:
-#      - uses: actions/checkout@v2
-#      - name: Set up Go
-#        uses: actions/setup-go@v2
-#        with:
-#          go-version: 1.17.2
-#      - name: build windows version
-#        run: go build -v -ldflags=${{ needs.release.outputs.default_ldflags }} -o bin/psh.exe ./cmd/psh
-#      - name: package
-#        run: mv template/psh.yaml bin/psh.yaml && tar -zcvf psh_${{ go env GOOS }}_${{ go env GOARCH }}.tgz -C bin .
-#      - name: upload
-#        if: ${{ !env.ACT }}
-#        uses: actions/upload-release-asset@v1
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#        with:
-#          upload_url: ${{ needs.release.outputs.upload_url }}
-#          asset_path: psh_${{ go env GOOS }}_${{ go env GOARCH }}.tgz
-#          asset_name: psh_${{ go env GOOS }}_${{ go env GOARCH }}.tgz
-#          asset_content_type: application/gzip
-#  macos_build:
-#    name: build psh macos
-#    needs: release
-#    runs-on: macos-latest
-#    steps:
-#      - uses: actions/checkout@v2
-#      - name: Set up Go
-#        uses: actions/setup-go@v2
-#        with:
-#          go-version: 1.17.2
-#      - name: build macos version
-#        run: go build -v -ldflags=${{ needs.release.outputs.default_ldflags }} -o bin/psh ./cmd/psh
-#      - name: package
-#        run: mv template/psh.yaml bin/psh.yaml && tar -zcvf psh_${{ go env GOOS }}_${{ go env GOARCH }}.tgz -C bin .
-#      - name: upload
-#        if: ${{ !env.ACT }}
-#        uses: actions/upload-release-asset@v1
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#        with:
-#          upload_url: ${{ needs.release.outputs.upload_url }}
-#          asset_path: psh_${{ go env GOOS }}_${{ go env GOARCH }}.tgz
-#          asset_name: psh_${{ go env GOOS }}_${{ go env GOARCH }}.tgz
-#          asset_content_type: application/gzip
