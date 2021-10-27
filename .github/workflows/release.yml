@@ -11,17 +11,6 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - goarch: amd64
-            goos: linux
-          - goarch: amd64
-            goos: darwin
-          - goarch: arm64
-            goos: linux
-          - goarch: arm64
-            goos: darwin
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
       default_ldflags: ${{ steps.create_ldflags.outputs.default_ldflags }}
