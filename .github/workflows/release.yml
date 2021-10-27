@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
+      default_ldflags: ${{ steps.create_ldflags.outputs.default_ldflags }}
     steps:
       - name: Create Release
         id: create_release
@@ -19,22 +20,21 @@ jobs:
           release_name: psh ${{ github.ref }}
           draft: false
           prerelease: false
+      - name: Create ldflags
+        id: create_ldflags
+        run: echo "::set-output name=default_ldflags::\"-X github.com/ssh-kit/psh.Version=${{ github.ref }}\""
   linux_build:
     name: build psh
     needs: release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Define variables
-        run: |
-          echo ::set-env name=BASE_PACKAGE_NAME::$(echo "github.com/ssh-kit/psh")
-          echo ::set-env name=DEFAULT_LDFLAGS::$(echo "-X ${BASE_PACKAGE_NAME}.Version=${{ github.ref }}")
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
           go-version: 1.17.2
       - name: build linux version
-        run: go build -v -ldflags=${DEFAULT_LDFLAGS} -o bin/psh ./cmd/psh
+        run: go build -v -ldflags=${{ needs.release.outputs.default_ldflags }} -o bin/psh ./cmd/psh
       - name: package
         run: mv template/psh.yaml bin/psh.yaml && tar -zcvf psh_linux_x64.tgz -C bin .
       - name: upload
@@ -51,16 +51,12 @@ jobs:
     needs: release
     steps:
       - uses: actions/checkout@v2
-      - name: Define variables
-        run: |
-          echo ::set-env name=BASE_PACKAGE_NAME::$(echo "github.com/ssh-kit/psh")
-          echo ::set-env name=DEFAULT_LDFLAGS::$(echo "-X ${BASE_PACKAGE_NAME}.Version=${{ github.ref }}")
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
           go-version: 1.17.2
       - name: build windows version
-        run: go build -v -ldflags=${DEFAULT_LDFLAGS} -o bin/psh.exe ./cmd/psh
+        run: go build -v -ldflags=${{ needs.release.outputs.default_ldflags }} -o bin/psh.exe ./cmd/psh
       - name: package
         run: mv template/psh.yaml bin/psh.yaml && tar -zcvf psh_windows_x64.tgz -C bin .
       - name: upload
@@ -78,16 +74,12 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Define variables
-        run: |
-          echo ::set-env name=BASE_PACKAGE_NAME::$(echo "github.com/ssh-kit/psh")
-          echo ::set-env name=DEFAULT_LDFLAGS::$(echo "-X ${BASE_PACKAGE_NAME}.Version=${{ github.ref }}")
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
           go-version: 1.17.2
       - name: build macos version
-        run: go build -v -ldflags=${DEFAULT_LDFLAGS} -o bin/psh ./cmd/psh
+        run: go build -v -ldflags=${{ needs.release.outputs.default_ldflags }} -o bin/psh ./cmd/psh
       - name: package
         run: mv template/psh.yaml bin/psh.yaml && tar -zcvf psh_macos_x64.tgz -C bin .
       - name: upload
