@@ -25,6 +25,7 @@ type SSH struct {
 type Config struct {
 	Host                string  `yaml:"host"`
 	User                string  `yaml:"user"`
+	LogLevel            string  `yaml:"log_level,omitempty"`
 	Password            string  `yaml:"password,omitempty"`
 	IdentityFile        string  `yaml:"identity_file,omitempty"`
 	ServerAliveInterval string  `yaml:"server_alive_interval"`

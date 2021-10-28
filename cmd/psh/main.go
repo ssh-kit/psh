@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"strconv"
 
 	"github.com/go-logr/logr"
 	"github.com/iand/logfmtr"
@@ -89,13 +90,20 @@ func (m *Main) Run(ctx context.Context) error {
 		os.Exit(0)
 	}
 
-	logfmtr.SetVerbosity(m.verbose)
-
 	yamlFile, err := ioutil.ReadFile(m.config)
 	err = yaml.Unmarshal(yamlFile, m.SSH.Config)
 	if err != nil {
 		return fmt.Errorf("Unmarshal: %v\n", err)
 	}
+
+	level, err := strconv.Atoi(m.SSH.Config.LogLevel)
+	if err != nil {
+		return fmt.Errorf("config log_level is error: %s", err)
+	}
+	if m.SSH.Config.LogLevel != "" {
+		m.verbose = level
+	}
+	logfmtr.SetVerbosity(m.verbose)
 
 	m.Logger.WithName("main").Info("started",
 		"verbose", m.verbose,
