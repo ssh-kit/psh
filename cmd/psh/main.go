@@ -96,11 +96,11 @@ func (m *Main) Run(ctx context.Context) error {
 		return fmt.Errorf("Unmarshal: %v\n", err)
 	}
 
-	level, err := strconv.Atoi(m.SSH.Config.LogLevel)
-	if err != nil {
-		return fmt.Errorf("config log_level is error: %s", err)
-	}
 	if m.SSH.Config.LogLevel != "" {
+		level, err := strconv.Atoi(m.SSH.Config.LogLevel)
+		if err != nil {
+			return fmt.Errorf("config log_level is error: %s", err)
+		}
 		m.verbose = level
 	}
 	logfmtr.SetVerbosity(m.verbose)
