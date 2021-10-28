@@ -69,12 +69,13 @@ func (m *Main) ParseFlags(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	defaultPath := fmt.Sprintf("%s/psh.yaml", home)
 
 	fs := flag.NewFlagSet("psh", flag.ExitOnError)
 	{
 		fs.BoolVar(&m.version, "version", false, "Show this program version")
 		fs.IntVar(&m.verbose, "verbose", 1, "Show verbose logging")
-		fs.StringVar(&m.config, "config", fmt.Sprintf("%s/.psh/psh.yaml", home), "Config file path (Default ./.psh/psh.yaml)")
+		fs.StringVar(&m.config, "config", defaultPath, fmt.Sprintf("Config file path (Default %s)", defaultPath))
 	}
 	return ff.Parse(fs, args,
 		ff.WithEnvVarPrefix("PSH"),
