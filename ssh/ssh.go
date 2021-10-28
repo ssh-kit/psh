@@ -2,7 +2,11 @@ package ssh
 
 import (
 	"context"
+	"fmt"
+	"io/ioutil"
 	"net"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -43,15 +47,42 @@ func NewSSH(logger logr.Logger, retry time.Duration) *SSH {
 
 func (s *SSH) Run(ctx context.Context) error {
 	c := s.Config
-	for {
-		config := &ssh.ClientConfig{
-			User: c.User,
-			Auth: []ssh.AuthMethod{
-				ssh.Password(c.Password),
-			},
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+
+	if c.IdentityFile == "" && c.Password == "" {
+		return fmt.Errorf("one of [password, identity_file] required")
+	}
+
+	var auth []ssh.AuthMethod
+	if c.IdentityFile != "" {
+		if strings.HasPrefix(c.IdentityFile, "~") {
+			homePath, err := os.UserHomeDir()
+			if err != nil {
+				return err
+			}
+			c.IdentityFile = strings.Replace(c.IdentityFile, "~", homePath, 1)
+		}
+		key, err := ioutil.ReadFile(c.IdentityFile)
+		if err != nil {
+			return err
+		}
+		singer, err := ssh.ParsePrivateKey(key)
+		if err != nil {
+			return err
 		}
 
+		auth = append(auth, ssh.PublicKeys(singer))
+	}
+	if c.Password != "" {
+		auth = append(auth, ssh.Password(c.Password))
+	}
+
+	config := &ssh.ClientConfig{
+		User:            c.User,
+		Auth:            auth,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
+
+	for {
 		conn, err := ssh.Dial("tcp", c.Host, config)
 		if err != nil {
 			s.logger.Error(err, "connect",
