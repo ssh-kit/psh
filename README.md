@@ -20,9 +20,14 @@ host: <remote_host>:22
 user: root
 # One of [password, identity_file] is required
 password: password
+# server_alive_interval default closed
 server_alive_interval: 60s
 # log_level is optional
 log_level: 2
+# retry_min default value is 2s
+retry_min: 5s
+# retry_max is max retry time (default unlimited)
+retry_max: 60s
 rules:
   # 反向端口转发
   - remote: "<remote_ip>:27011"
