@@ -30,7 +30,7 @@ type Config struct {
 	IdentityFile        string        `yaml:"identity_file,omitempty"`
 	RetryMin            time.Duration `yaml:"retry_min,omitempty"`
 	RetryMax            time.Duration `yaml:"retry_max,omitempty"`
-	ServerAliveInterval string        `yaml:"server_alive_interval"`
+	ServerAliveInterval time.Duration `yaml:"server_alive_interval"`
 	Rules               []Rules       `yaml:"rules"`
 }
 
@@ -113,13 +113,11 @@ func (s *SSH) Run(ctx context.Context) error {
 			connErr <- conn.Wait()
 		}()
 
-		interval, err := time.ParseDuration(c.ServerAliveInterval)
-		if err != nil {
-			return err
-		}
 		// run remote listen and proxy for each rule
 		childCtx, childCancel := context.WithCancel(ctx)
-		go s.keepAlive(childCtx, conn, interval)
+		if c.ServerAliveInterval > 0 {
+			go s.keepAlive(childCtx, conn, c.ServerAliveInterval)
+		}
 		go s.run(childCtx, conn)
 
 		select {
