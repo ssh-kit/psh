@@ -59,6 +59,7 @@ func NewMain() *Main {
 	opts := logfmtr.DefaultOptions()
 	opts.AddCaller = true
 	logger := logfmtr.NewWithOptions(opts)
+
 	return &Main{
 		Logger: logger,
 		SSH:    ssh.NewSSH(logger.WithName("ssh"), ssh.DefaultTime),
@@ -104,6 +105,10 @@ func (m *Main) Run(ctx context.Context) error {
 		m.verbose = level
 	}
 	logfmtr.SetVerbosity(m.verbose)
+
+	if m.SSH.Config.RetryMin.Seconds() != 0 {
+		m.SSH.Retry = m.SSH.Config.RetryMin
+	}
 
 	m.Logger.WithName("main").Info("started",
 		"verbose", m.verbose,

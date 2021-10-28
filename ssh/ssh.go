@@ -14,22 +14,24 @@ import (
 	"inet.af/tcpproxy"
 )
 
-const DefaultTime = time.Second * 5
+const DefaultTime = time.Second * 2
 
 type SSH struct {
 	Config *Config
+	Retry  time.Duration
 	logger logr.Logger
-	retry  time.Duration
 }
 
 type Config struct {
-	Host                string  `yaml:"host"`
-	User                string  `yaml:"user"`
-	LogLevel            string  `yaml:"log_level,omitempty"`
-	Password            string  `yaml:"password,omitempty"`
-	IdentityFile        string  `yaml:"identity_file,omitempty"`
-	ServerAliveInterval string  `yaml:"server_alive_interval"`
-	Rules               []Rules `yaml:"rules"`
+	Host                string        `yaml:"host"`
+	User                string        `yaml:"user"`
+	LogLevel            string        `yaml:"log_level,omitempty"`
+	Password            string        `yaml:"password,omitempty"`
+	IdentityFile        string        `yaml:"identity_file,omitempty"`
+	RetryMin            time.Duration `yaml:"retry_min,omitempty"`
+	RetryMax            time.Duration `yaml:"retry_max,omitempty"`
+	ServerAliveInterval string        `yaml:"server_alive_interval"`
+	Rules               []Rules       `yaml:"rules"`
 }
 
 type Rules struct {
@@ -41,8 +43,8 @@ type Rules struct {
 func NewSSH(logger logr.Logger, retry time.Duration) *SSH {
 	return &SSH{
 		Config: &Config{},
+		Retry:  retry,
 		logger: logger,
-		retry:  retry,
 	}
 }
 
@@ -81,7 +83,7 @@ func (s *SSH) Run(ctx context.Context) error {
 		User:            c.User,
 		Auth:            auth,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         DefaultTime * 3,
+		Timeout:         time.Second * 15,
 	}
 
 	for {
@@ -89,15 +91,15 @@ func (s *SSH) Run(ctx context.Context) error {
 		if err != nil {
 			s.logger.Error(err, "connect",
 				"host", c.Host,
-				"retry", s.retry,
+				"retry", s.Retry,
 			)
-			if s.retry.Seconds() < 60 {
-				s.retry = s.retry + DefaultTime
+			if s.Retry.Seconds() < s.Config.RetryMax.Seconds() {
+				s.Retry = s.Retry * 2
 			}
 			select {
 			case <-ctx.Done():
 				return nil
-			case <-time.After(s.retry):
+			case <-time.After(s.Retry):
 				continue
 			}
 		}
@@ -128,11 +130,11 @@ func (s *SSH) Run(ctx context.Context) error {
 		case <-connErr:
 			s.logger.Error(conn.Wait(), "connect",
 				"Host", c.Host,
-				"retry", s.retry,
+				"retry", s.Retry,
 			)
 			childCancel()
 			conn.Close()
-			time.Sleep(s.retry)
+			time.Sleep(s.Retry)
 		}
 	}
 }
@@ -140,23 +142,26 @@ func (s *SSH) Run(ctx context.Context) error {
 func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 	for _, rule := range s.Config.Rules {
 		if rule.Reverse {
-			listen, err := conn.Listen("tcp", rule.Remote)
-			if err != nil {
-				s.logger.Error(err, "forward",
+			for {
+				listen, err := conn.Listen("tcp", rule.Remote)
+				if err != nil {
+					s.logger.Error(err, "listen",
+						"reverse", rule.Reverse,
+						"remote", rule.Remote,
+						"retry", s.Retry,
+					)
+					continue
+				}
+
+				s.logger.V(1).Info("listen",
 					"reverse", rule.Reverse,
 					"remote", rule.Remote,
-					"retry", s.retry,
 				)
+
+				// accept message and proxy
+				go s.proxy(ctx, listen, rule)
 				break
 			}
-
-			s.logger.V(1).Info("forward",
-				"reverse", rule.Reverse,
-				"remote", rule.Remote,
-			)
-
-			// accept message and proxy
-			go s.proxy(ctx, listen, rule)
 		}
 	}
 }
@@ -170,13 +175,13 @@ func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rules) {
 			s.logger.Error(err, "proxy",
 				"remote", rule.Remote,
 				"local", rule.Local,
-				"retry", s.retry,
+				"retry", s.Retry,
 			)
 
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(s.retry):
+			case <-time.After(s.Retry):
 				continue
 			}
 		}
@@ -203,7 +208,7 @@ func (s *SSH) keepAlive(ctx context.Context, conn ssh.Conn, interval time.Durati
 	for {
 		select {
 		case <-t.C:
-			ok, _, err := conn.SendRequest("keep_alive_msg", true, nil)
+			ok, _, err := conn.SendRequest("keepalive@psh.dev", true, nil)
 			if err != nil {
 				s.logger.Error(err, "keepalive")
 				return

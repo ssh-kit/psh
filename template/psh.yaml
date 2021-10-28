@@ -3,6 +3,8 @@ user: root
 password: password
 log_level: 1
 server_alive_interval: 60s
+retry_min: 5s
+retry_max: 60s
 rules:
   # 反向端口转发
   - remote: 192.168.12.1:27011
