@@ -148,6 +148,7 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 						"remote", rule.Remote,
 						"retry", s.Retry,
 					)
+					time.Sleep(s.Retry)
 					continue
 				}
 
