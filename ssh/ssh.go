@@ -80,6 +80,7 @@ func (s *SSH) Run(ctx context.Context) error {
 		User:            c.User,
 		Auth:            auth,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         DefaultTime * 3,
 	}
 
 	for {
@@ -89,6 +90,9 @@ func (s *SSH) Run(ctx context.Context) error {
 				"host", c.Host,
 				"retry", s.retry,
 			)
+			if s.retry.Seconds() < 60 {
+				s.retry = s.retry + 5
+			}
 			select {
 			case <-ctx.Done():
 				return nil
