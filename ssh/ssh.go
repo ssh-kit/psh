@@ -101,15 +101,20 @@ func (s *SSH) Run(ctx context.Context) error {
 			}
 		}
 
-		// run remote listen and proxy for each rule
+		s.logger.V(1).Info("connect",
+			"host", c.Host,
+		)
 
+		// run remote listen and proxy for each rule
+		childCtx, childCancel := context.WithCancel(ctx)
 		closed := make(chan error, 1)
 		go func() {
 			closed <- conn.Wait()
+			childCancel()
 			conn.Close()
 		}()
 
-		go s.run(ctx, conn)
+		go s.run(childCtx, conn)
 
 		select {
 		case <-ctx.Done():
@@ -119,6 +124,7 @@ func (s *SSH) Run(ctx context.Context) error {
 				"Host", c.Host,
 				"retry", s.retry,
 			)
+			childCancel()
 			time.Sleep(s.retry)
 		}
 	}
@@ -126,11 +132,12 @@ func (s *SSH) Run(ctx context.Context) error {
 
 func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 	for {
-		ch := make(chan error, 1)
+		closed := make(chan error, 1)
 		for _, rule := range s.Config.Rules {
 			if rule.Reverse {
 				// open remote listen
-				l, err := conn.Listen("tcp", rule.Remote)
+				childClosed := make(chan error, 1)
+				listen, err := conn.Listen("tcp", rule.Remote)
 				if err != nil {
 					s.logger.Error(err, "forward",
 						"reverse", rule.Reverse,
@@ -138,7 +145,9 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 						"retry", s.retry,
 					)
 
-					ch <- err
+					closed <- err
+					childClosed <- err
+					listen.Close()
 					break
 				}
 
@@ -148,11 +157,17 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 				)
 
 				// accept message and proxy
-				go s.proxy(l, rule)
+				childCtx, childCancel := context.WithCancel(ctx)
+				go s.proxy(childCtx, listen, rule)
+				go func() {
+					<-childClosed
+					childCancel()
+				}()
 			}
 		}
+
 		select {
-		case <-ch:
+		case <-closed:
 			time.Sleep(s.retry)
 		case <-ctx.Done():
 			return
@@ -160,7 +175,7 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 	}
 }
 
-func (s *SSH) proxy(l net.Listener, rule Rules) {
+func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rules) {
 	dialProxy := tcpproxy.To(rule.Local)
 	dialProxy.DialTimeout = time.Second * 15
 	for {
@@ -172,8 +187,12 @@ func (s *SSH) proxy(l net.Listener, rule Rules) {
 				"retry", s.retry,
 			)
 
-			time.Sleep(s.retry)
-			continue
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(s.retry):
+				continue
+			}
 		}
 		s.logger.V(2).Info("proxy",
 			"status", "accept",
