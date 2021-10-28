@@ -91,7 +91,7 @@ func (s *SSH) Run(ctx context.Context) error {
 				"retry", s.retry,
 			)
 			if s.retry.Seconds() < 60 {
-				s.retry = s.retry + 5
+				s.retry = s.retry + DefaultTime
 			}
 			select {
 			case <-ctx.Done():
@@ -105,72 +105,57 @@ func (s *SSH) Run(ctx context.Context) error {
 			"host", c.Host,
 		)
 
-		// run remote listen and proxy for each rule
-		childCtx, childCancel := context.WithCancel(ctx)
-		closed := make(chan error, 1)
+		connErr := make(chan error, 1)
 		go func() {
-			closed <- conn.Wait()
-			childCancel()
-			conn.Close()
+			connErr <- conn.Wait()
 		}()
 
+		interval, err := time.ParseDuration(c.ServerAliveInterval)
+		if err != nil {
+			return err
+		}
+		// run remote listen and proxy for each rule
+		childCtx, childCancel := context.WithCancel(ctx)
+		go s.keepAlive(childCtx, conn, interval)
 		go s.run(childCtx, conn)
 
 		select {
 		case <-ctx.Done():
-			return conn.Close()
-		case err = <-closed:
-			s.logger.Error(err, "connect",
+			childCancel()
+			conn.Close()
+			return nil
+		case <-connErr:
+			s.logger.Error(conn.Wait(), "connect",
 				"Host", c.Host,
 				"retry", s.retry,
 			)
 			childCancel()
+			conn.Close()
 			time.Sleep(s.retry)
 		}
 	}
 }
 
 func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
-	for {
-		closed := make(chan error, 1)
-		for _, rule := range s.Config.Rules {
-			if rule.Reverse {
-				// open remote listen
-				childClosed := make(chan error, 1)
-				listen, err := conn.Listen("tcp", rule.Remote)
-				if err != nil {
-					s.logger.Error(err, "forward",
-						"reverse", rule.Reverse,
-						"remote", rule.Remote,
-						"retry", s.retry,
-					)
-
-					closed <- err
-					childClosed <- err
-					listen.Close()
-					break
-				}
-
-				s.logger.V(1).Info("forward",
+	for _, rule := range s.Config.Rules {
+		if rule.Reverse {
+			listen, err := conn.Listen("tcp", rule.Remote)
+			if err != nil {
+				s.logger.Error(err, "forward",
 					"reverse", rule.Reverse,
 					"remote", rule.Remote,
+					"retry", s.retry,
 				)
-
-				// accept message and proxy
-				childCtx, childCancel := context.WithCancel(ctx)
-				go s.proxy(childCtx, listen, rule)
-				go func() {
-					<-childClosed
-					childCancel()
-				}()
+				break
 			}
-		}
 
-		select {
-		case <-closed:
-			time.Sleep(s.retry)
-		case <-ctx.Done():
-			return
+			s.logger.V(1).Info("forward",
+				"reverse", rule.Reverse,
+				"remote", rule.Remote,
+			)
+
+			// accept message and proxy
+			go s.proxy(ctx, listen, rule)
 		}
 	}
 }
@@ -208,5 +193,30 @@ func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rules) {
 			"remote", rule.Remote,
 			"local", rule.Local,
 		)
+	}
+}
+
+func (s *SSH) keepAlive(ctx context.Context, conn ssh.Conn, interval time.Duration) {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+			ok, _, err := conn.SendRequest("keep_alive_msg", true, nil)
+			if err != nil {
+				s.logger.Error(err, "keepalive")
+				return
+			}
+			s.logger.V(2).Info("keepalive",
+				"status", ok,
+				"host", s.Config.Host,
+			)
+		case <-ctx.Done():
+			s.logger.V(2).Info("keepalive",
+				"status", "exited",
+				"host", s.Config.Host,
+			)
+			return
+		}
 	}
 }
