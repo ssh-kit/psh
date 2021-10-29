@@ -9,9 +9,20 @@ Proxy by SSH => psh
   - Config file `psh.yaml`
 
 ## use guidance
+  The project `psh` work like the picture, it will listen ports (define in `psh.yaml`) at `remote`
+  machine and then forward traffic that comes from `client` to `local` by ssh protocol.
 
-  - Run binary file (`psh`)
-  - list help message by `psh -h`
+  <center>
+
+  ![alt struct](./docs/resources/struct.png)
+
+  </center>
+
+  You can use it by following ways:
+  - Define config file `psh.yaml` according to your own situation.
+  - You can also rename config file and by `psh -config <file_name>` to use it.
+  - Run binary file `psh` on macOS, Linux. (Windows is `psh.exe`)
+  - List more help messages by `psh -h`.
 
 ## psh.yaml template
 
