@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/iand/logfmtr"
@@ -62,7 +63,7 @@ func NewMain() *Main {
 
 	return &Main{
 		Logger: logger,
-		SSH:    ssh.NewSSH(logger.WithName("ssh"), ssh.DefaultTime),
+		SSH:    ssh.NewSSH(logger.WithName("ssh")),
 	}
 }
 
@@ -106,8 +107,8 @@ func (m *Main) Run(ctx context.Context) error {
 	}
 	logfmtr.SetVerbosity(m.verbose)
 
-	if m.SSH.Config.RetryMin.Seconds() != 0 {
-		m.SSH.Retry = m.SSH.Config.RetryMin
+	if m.SSH.Config.RetryMin <= 0 {
+		m.SSH.Config.RetryMin = time.Second
 	}
 
 	m.Logger.WithName("main").Info("started",

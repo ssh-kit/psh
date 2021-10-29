@@ -14,8 +14,6 @@ import (
 	"inet.af/tcpproxy"
 )
 
-const DefaultTime = time.Second * 2
-
 type SSH struct {
 	Config *Config
 	Retry  time.Duration
@@ -40,10 +38,12 @@ type Rules struct {
 	Reverse bool   `yaml:"reverse,omitempty"`
 }
 
-func NewSSH(logger logr.Logger, retry time.Duration) *SSH {
+func NewSSH(logger logr.Logger) *SSH {
 	return &SSH{
-		Config: &Config{},
-		Retry:  retry,
+		Config: &Config{
+			RetryMin: time.Second * 1,
+			RetryMax: time.Second * 60,
+		},
 		logger: logger,
 	}
 }
@@ -86,23 +86,32 @@ func (s *SSH) Run(ctx context.Context) error {
 		Timeout:         time.Second * 15,
 	}
 
+	var tempDelay time.Duration // how long to sleep on accept failure
 	for {
 		conn, err := ssh.Dial("tcp", c.Host, config)
 		if err != nil {
-			s.logger.Error(err, "connect",
-				"host", c.Host,
-				"retry", s.Retry,
-			)
-			if s.Retry.Seconds() < s.Config.RetryMax.Seconds() {
-				s.Retry = s.Retry * 2
+			if tempDelay == 0 {
+				tempDelay = s.Config.RetryMin
+			} else {
+				tempDelay *= 2
 			}
+			if tempDelay > s.Config.RetryMax {
+				tempDelay = s.Config.RetryMax
+			}
+
+			s.logger.Error(err, "dial",
+				"host", c.Host,
+				"retry_in", tempDelay,
+			)
+
 			select {
 			case <-ctx.Done():
 				return nil
-			case <-time.After(s.Retry):
+			case <-time.After(tempDelay):
 				continue
 			}
 		}
+		tempDelay = 0
 
 		s.logger.V(1).Info("connect",
 			"host", c.Host,
@@ -128,29 +137,39 @@ func (s *SSH) Run(ctx context.Context) error {
 		case <-connErr:
 			s.logger.Error(conn.Wait(), "connect",
 				"Host", c.Host,
-				"retry", s.Retry,
 			)
 			childCancel()
 			conn.Close()
-			time.Sleep(s.Retry)
 		}
 	}
 }
 
 func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
+	var tempDelay time.Duration // how long to sleep on accept failure
 	for _, rule := range s.Config.Rules {
 		if rule.Reverse {
 			for {
 				listen, err := conn.Listen("tcp", rule.Remote)
 				if err != nil {
+					if tempDelay == 0 {
+						tempDelay = s.Config.RetryMin
+					} else {
+						tempDelay *= 2
+					}
+					if tempDelay > s.Config.RetryMax {
+						tempDelay = s.Config.RetryMax
+					}
+
 					s.logger.Error(err, "listen",
 						"reverse", rule.Reverse,
 						"remote", rule.Remote,
-						"retry", s.Retry,
+						"retry_in", tempDelay,
 					)
-					time.Sleep(s.Retry)
+
+					time.Sleep(tempDelay)
 					continue
 				}
+				tempDelay = 0
 
 				s.logger.V(1).Info("listen",
 					"reverse", rule.Reverse,
@@ -168,32 +187,47 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rules) {
 	dialProxy := tcpproxy.To(rule.Local)
 	dialProxy.DialTimeout = time.Second * 15
+	var tempDelay time.Duration
 	for {
 		accept, err := l.Accept()
 		if err != nil {
-			s.logger.Error(err, "proxy",
-				"remote", rule.Remote,
-				"local", rule.Local,
-				"retry", s.Retry,
-			)
+			if tempDelay == 0 {
+				tempDelay = s.Config.RetryMin
+			} else {
+				tempDelay *= 2
+			}
+			if tempDelay > s.Config.RetryMax {
+				tempDelay = s.Config.RetryMax
+			}
 
 			select {
 			case <-ctx.Done():
+				s.logger.Error(err, "accept",
+					"status", "exited",
+					"remote", rule.Remote,
+					"local", rule.Local,
+					"reverse", rule.Reverse,
+				)
 				return
-			case <-time.After(s.Retry):
+			case <-time.After(tempDelay):
+				s.logger.Error(err, "accept",
+					"remote", rule.Remote,
+					"local", rule.Local,
+					"reverse", rule.Reverse,
+					"retry_in", tempDelay,
+				)
 				continue
 			}
 		}
-		s.logger.V(2).Info("proxy",
-			"status", "accept",
+		tempDelay = 0
+
+		s.logger.V(2).Info("forward start",
 			"reverse", rule.Reverse,
 			"remote", rule.Remote,
 			"local", rule.Local,
 		)
-
 		dialProxy.HandleConn(accept)
-		s.logger.V(2).Info("proxy",
-			"status", "finish",
+		s.logger.V(2).Info("forward end",
 			"reverse", rule.Reverse,
 			"remote", rule.Remote,
 			"local", rule.Local,

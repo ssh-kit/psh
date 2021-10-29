@@ -24,12 +24,11 @@ password: password
 server_alive_interval: 60s
 # log_level is optional
 log_level: 2
-# retry_min default value is 2s
-retry_min: 5s
-# retry_max is max retry time (default unlimited)
-retry_max: 60s
+## retry_min (default value = 1s)
+#retry_min: 1s
+## retry_max (default value = 60s)
+#retry_max: 60s
 rules:
-  # 反向端口转发
   - remote: "<remote_ip>:27011"
     local: 127.0.0.1:3000
     reverse: true
