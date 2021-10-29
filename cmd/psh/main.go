@@ -87,9 +87,12 @@ func (m *Main) Run(ctx context.Context) error {
 	}
 
 	yamlFile, err := ioutil.ReadFile(m.config)
+	if err != nil {
+		return fmt.Errorf("read config file: %v", err)
+	}
 	err = yaml.Unmarshal(yamlFile, m.SSH.Config)
 	if err != nil {
-		return fmt.Errorf("Unmarshal: %v\n", err)
+		return fmt.Errorf("unmarshal config file: %v", err)
 	}
 
 	if m.SSH.Config.LogLevel != "" {
