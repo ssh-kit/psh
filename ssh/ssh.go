@@ -29,10 +29,10 @@ type Config struct {
 	RetryMin            time.Duration `yaml:"retry_min,omitempty"`
 	RetryMax            time.Duration `yaml:"retry_max,omitempty"`
 	ServerAliveInterval time.Duration `yaml:"server_alive_interval"`
-	Rules               []Rules       `yaml:"rules"`
+	Rules               []Rule        `yaml:"rules"`
 }
 
-type Rules struct {
+type Rule struct {
 	Remote  string `yaml:"remote,omitempty"`
 	Local   string `yaml:"local,omitempty"`
 	Reverse bool   `yaml:"reverse,omitempty"`
@@ -184,7 +184,7 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 	}
 }
 
-func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rules) {
+func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rule) {
 	dialProxy := tcpproxy.To(rule.Local)
 	dialProxy.DialTimeout = time.Second * 15
 	var tempDelay time.Duration
