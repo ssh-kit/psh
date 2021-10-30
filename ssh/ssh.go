@@ -227,13 +227,15 @@ func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rule) {
 			"remote", rule.Remote,
 			"local", rule.Local,
 		)
-		go dialProxy.HandleConn(accept)
-		s.logger.V(2).Info("forward",
-			"status", "end",
-			"reverse", rule.Reverse,
-			"remote", rule.Remote,
-			"local", rule.Local,
-		)
+		go func() {
+			dialProxy.HandleConn(accept)
+			s.logger.V(2).Info("forward",
+				"status", "end",
+				"reverse", rule.Reverse,
+				"remote", rule.Remote,
+				"local", rule.Local,
+			)
+		}()
 	}
 }
 
