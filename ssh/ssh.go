@@ -245,15 +245,36 @@ func (s *SSH) keepAlive(ctx context.Context, conn ssh.Conn, interval time.Durati
 	for {
 		select {
 		case <-t.C:
-			ok, _, err := conn.SendRequest("keepalive@psh.dev", true, nil)
-			if err != nil {
-				s.logger.Error(err, "keepalive")
+			res := make(chan struct {
+				ok  bool
+				err error
+			}, 1)
+
+			go func() {
+				ok, _, err := conn.SendRequest("keepalive@psh.dev", true, nil)
+				res <- struct {
+					ok  bool
+					err error
+				}{ok: ok, err: err}
+			}()
+
+			select {
+			case r := <-res:
+				if r.err != nil {
+					s.logger.Error(r.err, "keepalive")
+					return
+				}
+				s.logger.V(2).Info("keepalive",
+					"status", r.ok,
+					"host", s.Config.Host,
+				)
+			case <-time.After(time.Second * 15):
+				conn.Close()
+				s.logger.Error(fmt.Errorf("keepalive timeout"),
+					"timeout", "15s",
+				)
 				return
 			}
-			s.logger.V(2).Info("keepalive",
-				"status", ok,
-				"host", s.Config.Host,
-			)
 		case <-ctx.Done():
 			s.logger.V(2).Info("keepalive",
 				"status", "exited",
