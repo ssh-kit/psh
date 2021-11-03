@@ -39,6 +39,8 @@ log_level: 2
 #retry_min: 1s
 ## retry_max (default value = 60s)
 #retry_max: 60s
+# ssh_timeout (default value = 15s)
+## ssh_timeout: 15s
 rules:
   - remote: "<remote_ip>:27011"
     local: 127.0.0.1:3000
