@@ -80,7 +80,7 @@ func (s *SSH) Run(ctx context.Context) error {
 		auth = append(auth, ssh.Password(c.Password))
 	}
 
-	if c.SSHTimeout < 0 {
+	if c.SSHTimeout <= 0 {
 		c.SSHTimeout = time.Second * 15
 	}
 
