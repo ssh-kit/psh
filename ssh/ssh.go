@@ -26,6 +26,7 @@ type Config struct {
 	LogLevel            string        `yaml:"log_level,omitempty"`
 	Password            string        `yaml:"password,omitempty"`
 	IdentityFile        string        `yaml:"identity_file,omitempty"`
+	SSHTimeout          time.Duration `yaml:"ssh_timeout,omitempty"`
 	RetryMin            time.Duration `yaml:"retry_min,omitempty"`
 	RetryMax            time.Duration `yaml:"retry_max,omitempty"`
 	ServerAliveInterval time.Duration `yaml:"server_alive_interval"`
@@ -79,16 +80,21 @@ func (s *SSH) Run(ctx context.Context) error {
 		auth = append(auth, ssh.Password(c.Password))
 	}
 
+	if c.SSHTimeout < 0 {
+		c.SSHTimeout = time.Second * 15
+	}
+
 	config := &ssh.ClientConfig{
 		User:            c.User,
 		Auth:            auth,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         time.Second * 15,
+		Timeout:         c.SSHTimeout,
 	}
 
-	var tempDelay time.Duration // how long to sleep on accept failure
+	// how long to sleep on accept failure
+	var tempDelay time.Duration
 	for {
-		conn, err := ssh.Dial("tcp", c.Host, config)
+		conn, err := SSHDialTimeout("tcp", c.Host, config, c.SSHTimeout)
 		if err != nil {
 			if tempDelay == 0 {
 				tempDelay = s.Config.RetryMin
@@ -245,36 +251,14 @@ func (s *SSH) keepAlive(ctx context.Context, conn ssh.Conn, interval time.Durati
 	for {
 		select {
 		case <-t.C:
-			res := make(chan struct {
-				ok  bool
-				err error
-			}, 1)
-
-			go func() {
-				ok, _, err := conn.SendRequest("keepalive@psh.dev", true, nil)
-				res <- struct {
-					ok  bool
-					err error
-				}{ok: ok, err: err}
-			}()
-
-			select {
-			case r := <-res:
-				if r.err != nil {
-					s.logger.Error(r.err, "keepalive")
-					return
-				}
-				s.logger.V(2).Info("keepalive",
-					"status", r.ok,
-					"host", s.Config.Host,
-				)
-			case <-time.After(time.Second * 15):
-				conn.Close()
-				s.logger.Error(fmt.Errorf("keepalive timeout"),
-					"timeout", "15s",
-				)
+			_, _, err := conn.SendRequest("keepalive@psh.dev", true, nil)
+			if err != nil {
+				s.logger.Error(err, "keepalive")
 				return
 			}
+			s.logger.V(2).Info("keepalive",
+				"host", s.Config.Host,
+			)
 		case <-ctx.Done():
 			s.logger.V(2).Info("keepalive",
 				"status", "exited",
