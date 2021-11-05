@@ -23,13 +23,13 @@ type SSH struct {
 type Config struct {
 	Host                string        `yaml:"host"`
 	User                string        `yaml:"user"`
-	LogLevel            string        `yaml:"log_level,omitempty"`
+	LogLevel            int           `yaml:"log_level,omitempty"`
 	Password            string        `yaml:"password,omitempty"`
 	IdentityFile        string        `yaml:"identity_file,omitempty"`
-	SSHTimeout          time.Duration `yaml:"ssh_timeout,omitempty"`
 	RetryMin            time.Duration `yaml:"retry_min,omitempty"`
 	RetryMax            time.Duration `yaml:"retry_max,omitempty"`
 	ServerAliveInterval time.Duration `yaml:"server_alive_interval"`
+	ServerAliveCountMax uint32        `yaml:"server_alive_count_max"`
 	Rules               []Rule        `yaml:"rules"`
 }
 
@@ -80,21 +80,17 @@ func (s *SSH) Run(ctx context.Context) error {
 		auth = append(auth, ssh.Password(c.Password))
 	}
 
-	if c.SSHTimeout <= 0 {
-		c.SSHTimeout = time.Second * 15
-	}
-
 	config := &ssh.ClientConfig{
 		User:            c.User,
 		Auth:            auth,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         c.SSHTimeout,
+		Timeout:         time.Second * 30,
 	}
 
 	// how long to sleep on accept failure
 	var tempDelay time.Duration
 	for {
-		conn, err := SSHDialTimeout("tcp", c.Host, config, c.SSHTimeout)
+		conn, err := SSHDialTimeout("tcp", c.Host, config, c.ServerAliveInterval*time.Duration(c.ServerAliveCountMax))
 		if err != nil {
 			if tempDelay == 0 {
 				tempDelay = s.Config.RetryMin
@@ -141,7 +137,7 @@ func (s *SSH) Run(ctx context.Context) error {
 			conn.Close()
 			return nil
 		case <-connErr:
-			s.logger.Error(conn.Wait(), "dial",
+			s.logger.Error(conn.Wait(), "wait",
 				"Host", c.Host,
 			)
 			childCancel()

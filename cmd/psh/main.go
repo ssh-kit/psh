@@ -7,17 +7,16 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
-	"strconv"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
-	"github.com/iand/logfmtr"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/peterbourgon/ff/v3/ffyaml"
 	"github.com/ssh-kit/psh"
 	"github.com/ssh-kit/psh/ssh"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v2"
 )
 
@@ -59,11 +58,13 @@ type Main struct {
 
 // NewMain returns a new instance of Main.
 func NewMain() *Main {
-	zapLog, err := zap.NewDevelopment()
+	zc := zap.NewDevelopmentConfig()
+	zc.Level = zap.NewAtomicLevelAt(zapcore.Level(-2))
+	z, err := zc.Build()
 	if err != nil {
 		panic(err)
 	}
-	logger := zapr.NewLogger(zapLog)
+	logger := zapr.NewLogger(z)
 
 	return &Main{
 		Logger: logger,
@@ -99,14 +100,9 @@ func (m *Main) Run(ctx context.Context) error {
 		return fmt.Errorf("unmarshal config file: %v", err)
 	}
 
-	if m.SSH.Config.LogLevel != "" {
-		level, err := strconv.Atoi(m.SSH.Config.LogLevel)
-		if err != nil {
-			return fmt.Errorf("config log_level is error: %s", err)
-		}
-		m.verbose = level
+	if m.SSH.Config.LogLevel != 0 {
+		m.verbose = m.SSH.Config.LogLevel
 	}
-	logfmtr.SetVerbosity(m.verbose)
 
 	if m.SSH.Config.RetryMin <= 0 {
 		m.SSH.Config.RetryMin = time.Second

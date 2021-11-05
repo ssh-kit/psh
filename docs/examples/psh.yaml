@@ -1,8 +1,8 @@
 host: 192.168.12.1:22
 user: root
 password: password
-log_level: 1
 server_alive_interval: 60s
+server_alive_count_max: 3
 retry_min: 5s
 retry_max: 60s
 rules:
