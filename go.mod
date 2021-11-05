@@ -4,7 +4,6 @@ go 1.17
 
 require (
 	github.com/go-logr/logr v1.2.0
-	github.com/iand/logfmtr v0.2.1
 	github.com/peterbourgon/ff/v3 v3.1.2
 )
 
