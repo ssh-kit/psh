@@ -11,11 +11,13 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/go-logr/zapr"
 	"github.com/iand/logfmtr"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/peterbourgon/ff/v3/ffyaml"
 	"github.com/ssh-kit/psh"
 	"github.com/ssh-kit/psh/ssh"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 )
 
@@ -57,9 +59,11 @@ type Main struct {
 
 // NewMain returns a new instance of Main.
 func NewMain() *Main {
-	opts := logfmtr.DefaultOptions()
-	opts.AddCaller = true
-	logger := logfmtr.NewWithOptions(opts)
+	zapLog, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+	logger := zapr.NewLogger(zapLog)
 
 	return &Main{
 		Logger: logger,

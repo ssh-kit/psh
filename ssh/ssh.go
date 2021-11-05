@@ -119,7 +119,7 @@ func (s *SSH) Run(ctx context.Context) error {
 		}
 		tempDelay = 0
 
-		s.logger.V(1).Info("connect",
+		s.logger.V(1).Info("dial",
 			"host", c.Host,
 		)
 
@@ -141,7 +141,7 @@ func (s *SSH) Run(ctx context.Context) error {
 			conn.Close()
 			return nil
 		case <-connErr:
-			s.logger.Error(conn.Wait(), "connect",
+			s.logger.Error(conn.Wait(), "dial",
 				"Host", c.Host,
 			)
 			childCancel()
@@ -188,6 +188,7 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 			}
 		}
 	}
+
 }
 
 func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rule) {
