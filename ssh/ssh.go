@@ -167,9 +167,12 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 						"remote", rule.Remote,
 						"retry_in", tempDelay,
 					)
-
-					time.Sleep(tempDelay)
-					continue
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(tempDelay):
+						continue
+					}
 				}
 				tempDelay = 0
 
