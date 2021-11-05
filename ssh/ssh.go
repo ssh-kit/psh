@@ -167,8 +167,14 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 						"remote", rule.Remote,
 						"retry_in", tempDelay,
 					)
+
 					select {
 					case <-ctx.Done():
+						s.logger.V(2).Info("listen",
+							"status", "canceled",
+							"reverse", rule.Reverse,
+							"remote", rule.Remote,
+						)
 						return
 					case <-time.After(tempDelay):
 						continue
