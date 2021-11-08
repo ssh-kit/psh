@@ -280,12 +280,3 @@ func (s *SSH) getCurrentTempDelay(tempDelay time.Duration) time.Duration {
 	}
 	return tempDelay
 }
-
-func (s *SSH) resetTempDelay(ctx context.Context, tempDelay *time.Duration) {
-	select {
-	case <-ctx.Done():
-		return
-	case <-time.After(s.Config.RetryMax):
-		*tempDelay = 0
-	}
-}
