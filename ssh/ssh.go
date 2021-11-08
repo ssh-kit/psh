@@ -89,6 +89,7 @@ func (s *SSH) Run(ctx context.Context) error {
 
 	// how long to sleep on accept failure
 	var tempDelay time.Duration
+	var tempConnDelay time.Duration
 	for {
 		conn, err := SSHDialTimeout("tcp", c.Host, config, c.ServerAliveInterval*time.Duration(c.ServerAliveCountMax))
 		if err != nil {
@@ -132,24 +133,24 @@ func (s *SSH) Run(ctx context.Context) error {
 		case err := <-connErr:
 			s.logger.Error(err, "connect",
 				"Host", c.Host,
-				"retry_in", tempDelay,
+				"retry_in", tempConnDelay,
 			)
 			childCancel()
 			conn.Close()
 
 			// avoid too frequent reconnection
 			durationTime := time.Since(startTime)
-			tempDelay = s.getCurrentTempDelay(tempDelay)
-			if durationTime < tempDelay {
+			tempConnDelay = s.getCurrentTempDelay(tempConnDelay)
+			if durationTime < tempConnDelay {
 				select {
 				case <-ctx.Done():
 					return nil
-				case <-time.After(tempDelay - durationTime):
+				case <-time.After(tempConnDelay - durationTime):
 					continue
 				}
 			}
 			if durationTime > s.Config.RetryMax {
-				tempDelay = 0
+				tempConnDelay = 0
 			}
 		}
 	}
