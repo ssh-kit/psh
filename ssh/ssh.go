@@ -138,16 +138,17 @@ func (s *SSH) Run(ctx context.Context) error {
 			conn.Close()
 
 			// avoid too frequent reconnection
-			endTime := time.Now()
-			if endTime.Sub(startTime) < tempDelay {
+			durationTime := time.Since(startTime)
+			tempDelay = s.getCurrentTempDelay(tempDelay)
+			if durationTime < tempDelay {
 				select {
 				case <-ctx.Done():
 					return nil
-				case <-time.After(tempDelay - endTime.Sub(startTime)):
-					tempDelay = s.getCurrentTempDelay(tempDelay)
+				case <-time.After(tempDelay - durationTime):
 					continue
 				}
-			} else {
+			}
+			if durationTime > s.Config.RetryMax {
 				tempDelay = 0
 			}
 		}
