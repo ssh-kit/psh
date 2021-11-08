@@ -105,6 +105,7 @@ func (s *SSH) Run(ctx context.Context) error {
 				continue
 			}
 		}
+		startTime := time.Now()
 
 		s.logger.V(1).Info("dial",
 			"host", c.Host,
@@ -122,7 +123,6 @@ func (s *SSH) Run(ctx context.Context) error {
 		}
 
 		go s.run(childCtx, conn)
-		go s.resetTempDelay(childCtx, &tempDelay)
 
 		select {
 		case <-ctx.Done():
@@ -138,12 +138,17 @@ func (s *SSH) Run(ctx context.Context) error {
 			conn.Close()
 
 			// avoid too frequent reconnection
-			tempDelay = s.getCurrentTempDelay(tempDelay)
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-time.After(tempDelay):
-				continue
+			endTime := time.Now()
+			if endTime.Sub(startTime) < tempDelay {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(tempDelay - endTime.Sub(startTime)):
+					tempDelay = s.getCurrentTempDelay(tempDelay)
+					continue
+				}
+			} else {
+				tempDelay = 0
 			}
 		}
 	}
