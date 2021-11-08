@@ -92,15 +92,7 @@ func (s *SSH) Run(ctx context.Context) error {
 	for {
 		conn, err := SSHDialTimeout("tcp", c.Host, config, c.ServerAliveInterval*time.Duration(c.ServerAliveCountMax))
 		if err != nil {
-			if tempDelay == 0 {
-				tempDelay = s.Config.RetryMin
-			} else {
-				tempDelay *= 2
-			}
-			if tempDelay > s.Config.RetryMax {
-				tempDelay = s.Config.RetryMax
-			}
-
+			tempDelay = s.getCurrentTempDelay(tempDelay)
 			s.logger.Error(err, "dial",
 				"host", c.Host,
 				"retry_in", tempDelay,
@@ -113,7 +105,6 @@ func (s *SSH) Run(ctx context.Context) error {
 				continue
 			}
 		}
-		tempDelay = 0
 
 		s.logger.V(1).Info("dial",
 			"host", c.Host,
@@ -129,7 +120,9 @@ func (s *SSH) Run(ctx context.Context) error {
 		if c.ServerAliveInterval > 0 {
 			go s.keepAlive(childCtx, conn, c.ServerAliveInterval)
 		}
+
 		go s.run(childCtx, conn)
+		go s.resetTempDelay(childCtx, &tempDelay)
 
 		select {
 		case <-ctx.Done():
@@ -137,11 +130,21 @@ func (s *SSH) Run(ctx context.Context) error {
 			conn.Close()
 			return nil
 		case err := <-connErr:
-			s.logger.Error(err, "wait",
+			s.logger.Error(err, "connect",
 				"Host", c.Host,
+				"retry_in", tempDelay,
 			)
 			childCancel()
 			conn.Close()
+
+			// avoid too frequent reconnection
+			tempDelay = s.getCurrentTempDelay(tempDelay)
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(tempDelay):
+				continue
+			}
 		}
 	}
 }
@@ -153,14 +156,7 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 			for {
 				listen, err := conn.Listen("tcp", rule.Remote)
 				if err != nil {
-					if tempDelay == 0 {
-						tempDelay = s.Config.RetryMin
-					} else {
-						tempDelay *= 2
-					}
-					if tempDelay > s.Config.RetryMax {
-						tempDelay = s.Config.RetryMax
-					}
+					tempDelay = s.getCurrentTempDelay(tempDelay)
 
 					s.logger.Error(err, "listen",
 						"reverse", rule.Reverse,
@@ -203,14 +199,7 @@ func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rule) {
 	for {
 		accept, err := l.Accept()
 		if err != nil {
-			if tempDelay == 0 {
-				tempDelay = s.Config.RetryMin
-			} else {
-				tempDelay *= 2
-			}
-			if tempDelay > s.Config.RetryMax {
-				tempDelay = s.Config.RetryMax
-			}
+			tempDelay = s.getCurrentTempDelay(tempDelay)
 
 			select {
 			case <-ctx.Done():
@@ -272,5 +261,26 @@ func (s *SSH) keepAlive(ctx context.Context, conn ssh.Conn, interval time.Durati
 			)
 			return
 		}
+	}
+}
+
+func (s *SSH) getCurrentTempDelay(tempDelay time.Duration) time.Duration {
+	if tempDelay == 0 {
+		tempDelay = s.Config.RetryMin
+	} else {
+		tempDelay *= 2
+	}
+	if tempDelay > s.Config.RetryMax {
+		tempDelay = s.Config.RetryMax
+	}
+	return tempDelay
+}
+
+func (s *SSH) resetTempDelay(ctx context.Context, tempDelay *time.Duration) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(s.Config.RetryMax):
+		*tempDelay = 0
 	}
 }
