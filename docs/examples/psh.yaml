@@ -2,11 +2,10 @@ host: 192.168.12.1:22
 user: root
 password: password
 server_alive_interval: 60s
-server_alive_count_max: 3
-retry_min: 5s
-retry_max: 60s
+#server_alive_count_max: 3
+#retry_min: 5s
+#retry_max: 60s
 rules:
-  # 反向端口转发
   - remote: 192.168.12.1:27011
     local: 127.0.0.1:3000
     reverse: true
