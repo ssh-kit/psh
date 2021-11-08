@@ -136,8 +136,8 @@ func (s *SSH) Run(ctx context.Context) error {
 			childCancel()
 			conn.Close()
 			return nil
-		case <-connErr:
-			s.logger.Error(conn.Wait(), "wait",
+		case err := <-connErr:
+			s.logger.Error(err, "wait",
 				"Host", c.Host,
 			)
 			childCancel()

@@ -58,9 +58,12 @@ type Main struct {
 
 // NewMain returns a new instance of Main.
 func NewMain() *Main {
-	zc := zap.NewDevelopmentConfig()
-	zc.Level = zap.NewAtomicLevelAt(zapcore.Level(-2))
-	z, err := zc.Build()
+	zp := zap.NewProductionConfig()
+	zp.Encoding = "console"
+	zp.EncoderConfig.StacktraceKey = ""
+	zp.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	zp.Level = zap.NewAtomicLevelAt(zapcore.Level(-2))
+	z, err := zp.Build()
 	if err != nil {
 		panic(err)
 	}
