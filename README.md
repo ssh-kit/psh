@@ -70,7 +70,7 @@ ExecStart=/usr/bin/psh -verbose 2 -config /etc/psh/psh.yaml
 WantedBy=multi-user.target
 ```
 
-3.Start service is set to boot start
+3. Start service is set to boot start
 
 ```shell
 systemctl start autossh
