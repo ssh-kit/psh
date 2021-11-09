@@ -42,8 +42,10 @@ type Rule struct {
 func NewSSH(logger logr.Logger) *SSH {
 	return &SSH{
 		Config: &Config{
-			RetryMin: time.Second * 1,
-			RetryMax: time.Second * 60,
+			ServerAliveInterval: time.Second * 30,
+			ServerAliveCountMax: 3,
+			RetryMin:            time.Second * 1,
+			RetryMax:            time.Second * 60,
 		},
 		logger: logger,
 	}

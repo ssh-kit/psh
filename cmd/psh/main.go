@@ -111,6 +111,10 @@ func (m *Main) Run(ctx context.Context) error {
 		m.SSH.Config.RetryMin = time.Second
 	}
 
+	if m.SSH.Config.ServerAliveCountMax <= 1 {
+		m.SSH.Config.ServerAliveCountMax = 3
+	}
+
 	m.Logger.WithName("main").Info("started",
 		"verbose", m.verbose,
 		"config", m.config,
