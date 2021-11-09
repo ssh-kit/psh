@@ -51,8 +51,8 @@ rules:
 
 ## Guardian port forwarding service
 
-1. Download `psh` and Config file `psh.yaml`
-2. Create `psh` server base on `systemd` like this
+1.Download `psh` and Config file `psh.yaml`
+2.Create `psh` server base on `systemd` like this
 
 ```shell
 $ cat /etc/systemd/system/psh.service
@@ -70,9 +70,9 @@ ExecStart=/usr/bin/psh -verbose 2 -config /etc/psh/psh.yaml
 WantedBy=multi-user.target
 ```
 
-3. Start service is set to boot start
+3.Start service is set to boot start
 
 ```shell
-systemctl start autossh
-systemctl enable autossh
+systemctl start psh
+systemctl enable psh
 ```
