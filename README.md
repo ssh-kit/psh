@@ -48,3 +48,31 @@ rules:
     local: 127.0.0.1:3001
     reverse: true
 ```
+
+## Guardian port forwarding service
+
+1. Download `psh` and Config file `psh.yaml`
+2. Create `psh` server base on `systemd` like this
+
+```shell
+$ cat /etc/systemd/system/psh.service
+
+[Unit]
+Description=Proxy by SSH
+Requires=network.target
+After=network.target
+
+[Service]
+Restart=on-failure
+ExecStart=/usr/bin/psh -verbose 2 -config /etc/psh/psh.yaml
+
+[Install]
+WantedBy=multi-user.target
+```
+
+3.Start service is set to boot start
+
+```shell
+systemctl start autossh
+systemctl enable autossh
+```
