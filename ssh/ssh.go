@@ -108,6 +108,7 @@ func (s *SSH) Run(ctx context.Context) error {
 				continue
 			}
 		}
+		tempDelay = 0
 		startTime := time.Now()
 
 		s.logger.V(1).Info("dial",
