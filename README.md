@@ -21,6 +21,19 @@ Proxy by SSH => psh
 - You can also rename config file and by `psh -config <file_name>` to use it.
 - Run binary file `psh` on macOS, Linux. (Windows is `psh.exe`)
 - List more help messages by `psh -h`.
+```shell
+$ psh -h
+Usage of psh:
+  -config string
+        Config file path (default "psh.yaml")
+  -log-encoding string
+        Log encoding ( 'json' or 'console' ) (default "console")
+  -verbose int
+        Show verbose logging (default 1)
+  -version
+        Show this program version
+
+```
 
 ## psh.yaml template
 
@@ -51,9 +64,8 @@ rules:
 
 ## Guardian port forwarding service
 
-1.Download `psh` and Config file `psh.yaml`
-2.Create `psh` server base on `systemd` like this
-
+1. Download `psh` and Config file `psh.yaml`
+2. Create `psh` server base on `systemd` like this
 ```shell
 $ cat /etc/systemd/system/psh.service
 
@@ -69,8 +81,7 @@ ExecStart=/usr/bin/psh -verbose 2 -config /etc/psh/psh.yaml
 [Install]
 WantedBy=multi-user.target
 ```
-
-3.Start service is set to boot start
+3. Start service is set to boot start
 
 ```shell
 systemctl start psh

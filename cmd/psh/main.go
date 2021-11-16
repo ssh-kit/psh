@@ -70,7 +70,7 @@ func (m *Main) ParseFlags(ctx context.Context, args []string) error {
 	{
 		fs.BoolVar(&m.version, "version", false, "Show this program version")
 		fs.IntVar(&m.verbose, "verbose", 1, "Show verbose logging")
-		fs.StringVar(&m.encoding, "log-encoding", "console", "Log encoding ( 'json' or 'console' )")
+		fs.StringVar(&m.encoding, "log-encoding", "console", "Log encoding format use \"json\" or \"console\"")
 		fs.StringVar(&m.config, "config", "psh.yaml", "Config file path")
 	}
 	return ff.Parse(fs, args,
