@@ -51,7 +51,9 @@ type Main struct {
 	version bool
 	config  string
 
-	Logger logr.Logger
+	// Logger settings.
+	encoding string
+	Logger   logr.Logger
 
 	SSH *ssh.SSH
 }
@@ -68,6 +70,7 @@ func (m *Main) ParseFlags(ctx context.Context, args []string) error {
 	{
 		fs.BoolVar(&m.version, "version", false, "Show this program version")
 		fs.IntVar(&m.verbose, "verbose", 1, "Show verbose logging")
+		fs.StringVar(&m.encoding, "log-encoding", "console", "Log encoding ( 'json' or 'console' )")
 		fs.StringVar(&m.config, "config", "psh.yaml", "Config file path")
 	}
 	return ff.Parse(fs, args,
@@ -91,7 +94,7 @@ func (m *Main) Run(ctx context.Context) error {
 		return fmt.Errorf("unmarshal config file: %v", err)
 	}
 
-	l := logger.NewLogger(int8(m.verbose), "console", zapcore.ISO8601TimeEncoder)
+	l := logger.NewLogger(int8(m.verbose), m.encoding, zapcore.ISO8601TimeEncoder)
 	m.Logger = l.Build()
 	if m.SSH.Config.LogLevel != 0 {
 		l.LogLevel = m.SSH.Config.LogLevel

@@ -14,6 +14,12 @@ type Logger struct {
 }
 
 func NewLogger(logLevel int8, encoding string, encodeTime zapcore.TimeEncoder) *Logger {
+	switch encoding {
+	case "json":
+	case "console":
+	default:
+		encoding = "console"
+	}
 
 	return &Logger{
 		LogLevel:   logLevel,
@@ -24,8 +30,14 @@ func NewLogger(logLevel int8, encoding string, encodeTime zapcore.TimeEncoder) *
 
 func (l *Logger) Build() logr.Logger {
 	zp := zap.NewProductionConfig()
+
+	// set the log format ( json or console)
 	zp.Encoding = l.Encoding
+
+	// close logger stacktrace
 	zp.EncoderConfig.StacktraceKey = ""
+
+	// set the log time format
 	zp.EncoderConfig.EncodeTime = l.EncodeTime
 
 	if l.LogLevel > 0 {
