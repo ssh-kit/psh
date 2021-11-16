@@ -9,14 +9,14 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/ssh-kit/psh/logger"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/go-logr/logr"
-	"github.com/go-logr/zapr"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/peterbourgon/ff/v3/ffyaml"
 	"github.com/ssh-kit/psh"
 	"github.com/ssh-kit/psh/ssh"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v2"
 )
 
@@ -58,20 +58,8 @@ type Main struct {
 
 // NewMain returns a new instance of Main.
 func NewMain() *Main {
-	zp := zap.NewProductionConfig()
-	zp.Encoding = "console"
-	zp.EncoderConfig.StacktraceKey = ""
-	zp.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	zp.Level = zap.NewAtomicLevelAt(zapcore.Level(-2))
-	z, err := zp.Build()
-	if err != nil {
-		panic(err)
-	}
-	logger := zapr.NewLogger(z)
-
 	return &Main{
-		Logger: logger,
-		SSH:    ssh.NewSSH(logger.WithName("ssh")),
+		SSH: ssh.NewSSH(),
 	}
 }
 
@@ -103,9 +91,12 @@ func (m *Main) Run(ctx context.Context) error {
 		return fmt.Errorf("unmarshal config file: %v", err)
 	}
 
+	l := logger.NewLogger(int8(m.verbose), "console", zapcore.ISO8601TimeEncoder)
+	m.Logger = l.Build()
 	if m.SSH.Config.LogLevel != 0 {
-		m.verbose = m.SSH.Config.LogLevel
+		l.LogLevel = m.SSH.Config.LogLevel
 	}
+	m.SSH.Logger = l.Build().WithName("ssh")
 
 	if m.SSH.Config.RetryMin <= 0 {
 		m.SSH.Config.RetryMin = time.Second

@@ -10,36 +10,66 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+
 	"golang.org/x/crypto/ssh"
 	"inet.af/tcpproxy"
 )
 
 type SSH struct {
+	// Config is the ssh.ClientConfig to use when connecting to the SSH server.
 	Config *Config
-	Retry  time.Duration
-	logger logr.Logger
+
+	// Retry specifies the time to retry connecting to the SSH server
+	Retry time.Duration
+
+	// Logger is the logger to use for logging
+	Logger logr.Logger
 }
 
 type Config struct {
-	Host                string        `yaml:"host"`
-	User                string        `yaml:"user"`
-	LogLevel            int           `yaml:"log_level,omitempty"`
-	Password            string        `yaml:"password,omitempty"`
-	IdentityFile        string        `yaml:"identity_file,omitempty"`
-	RetryMin            time.Duration `yaml:"retry_min,omitempty"`
-	RetryMax            time.Duration `yaml:"retry_max,omitempty"`
+	// Host is the SSH server to connect to.
+	Host string `yaml:"host"`
+
+	// User is the user to authenticate as.
+	User string `yaml:"user"`
+
+	// LogLevel is the log level to use for logging
+	LogLevel int8 `yaml:"log_level,omitempty"`
+
+	// Password is the password to use for authentication.
+	Password string `yaml:"password,omitempty"`
+
+	// IdentityFile is the path to the private key file to use for authentication.
+	IdentityFile string `yaml:"identity_file,omitempty"`
+
+	// RetryMin is the minimum time to retry connecting to the SSH server
+	RetryMin time.Duration `yaml:"retry_min,omitempty"`
+
+	// RetryMax is the maximum time to retry connecting to the SSH server
+	RetryMax time.Duration `yaml:"retry_max,omitempty"`
+
+	// ServerAliveInterval is the interval to use for the SSH server's keepalive
 	ServerAliveInterval time.Duration `yaml:"server_alive_interval"`
-	ServerAliveCountMax uint32        `yaml:"server_alive_count_max"`
-	Rules               []Rule        `yaml:"rules"`
+
+	// ServerAliveCountMax is the maximum number of keepalive packets to send
+	ServerAliveCountMax uint32 `yaml:"server_alive_count_max"`
+
+	// Rules is the list of rules to use for the SSH server
+	Rules []Rule `yaml:"rules"`
 }
 
 type Rule struct {
-	Remote  string `yaml:"remote,omitempty"`
-	Local   string `yaml:"local,omitempty"`
-	Reverse bool   `yaml:"reverse,omitempty"`
+	// Remote is the remote address to forward to
+	Remote string `yaml:"remote,omitempty"`
+
+	// Local is the local address to forward to
+	Local string `yaml:"local,omitempty"`
+
+	// Reverse is whether to reverse the direction of the connection
+	Reverse bool `yaml:"reverse,omitempty"`
 }
 
-func NewSSH(logger logr.Logger) *SSH {
+func NewSSH() *SSH {
 	return &SSH{
 		Config: &Config{
 			ServerAliveInterval: time.Second * 30,
@@ -47,7 +77,6 @@ func NewSSH(logger logr.Logger) *SSH {
 			RetryMin:            time.Second * 1,
 			RetryMax:            time.Second * 60,
 		},
-		logger: logger,
 	}
 }
 
@@ -96,7 +125,7 @@ func (s *SSH) Run(ctx context.Context) error {
 		conn, err := SSHDialTimeout("tcp", c.Host, config, c.ServerAliveInterval*time.Duration(c.ServerAliveCountMax))
 		if err != nil {
 			tempDelay = s.getCurrentTempDelay(tempDelay)
-			s.logger.Error(err, "dial",
+			s.Logger.Error(err, "dial",
 				"host", c.Host,
 				"retry_in", tempDelay,
 			)
@@ -111,7 +140,7 @@ func (s *SSH) Run(ctx context.Context) error {
 		tempDelay = 0
 		startTime := time.Now()
 
-		s.logger.V(1).Info("dial",
+		s.Logger.V(1).Info("dial",
 			"host", c.Host,
 		)
 
@@ -134,7 +163,7 @@ func (s *SSH) Run(ctx context.Context) error {
 			conn.Close()
 			return nil
 		case err := <-connErr:
-			s.logger.Error(err, "connect",
+			s.Logger.Error(err, "connect",
 				"Host", c.Host,
 				"retry_in", tempConnDelay,
 			)
@@ -168,7 +197,7 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 				if err != nil {
 					tempDelay = s.getCurrentTempDelay(tempDelay)
 
-					s.logger.Error(err, "listen",
+					s.Logger.Error(err, "listen",
 						"reverse", rule.Reverse,
 						"remote", rule.Remote,
 						"retry_in", tempDelay,
@@ -176,7 +205,7 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 
 					select {
 					case <-ctx.Done():
-						s.logger.V(2).Info("listen",
+						s.Logger.V(2).Info("listen",
 							"status", "canceled",
 							"reverse", rule.Reverse,
 							"remote", rule.Remote,
@@ -188,7 +217,7 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 				}
 				tempDelay = 0
 
-				s.logger.V(1).Info("listen",
+				s.Logger.V(1).Info("listen",
 					"reverse", rule.Reverse,
 					"remote", rule.Remote,
 				)
@@ -213,7 +242,7 @@ func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rule) {
 
 			select {
 			case <-ctx.Done():
-				s.logger.Error(err, "accept",
+				s.Logger.Error(err, "accept",
 					"status", "exited",
 					"remote", rule.Remote,
 					"local", rule.Local,
@@ -221,7 +250,7 @@ func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rule) {
 				)
 				return
 			case <-time.After(tempDelay):
-				s.logger.Error(err, "accept",
+				s.Logger.Error(err, "accept",
 					"remote", rule.Remote,
 					"local", rule.Local,
 					"reverse", rule.Reverse,
@@ -232,7 +261,7 @@ func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rule) {
 		}
 		tempDelay = 0
 
-		s.logger.V(2).Info("forward",
+		s.Logger.V(2).Info("forward",
 			"status", "start",
 			"reverse", rule.Reverse,
 			"remote", rule.Remote,
@@ -240,7 +269,7 @@ func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rule) {
 		)
 		go func() {
 			dialProxy.HandleConn(accept)
-			s.logger.V(2).Info("forward",
+			s.Logger.V(2).Info("forward",
 				"status", "end",
 				"reverse", rule.Reverse,
 				"remote", rule.Remote,
@@ -258,14 +287,14 @@ func (s *SSH) keepAlive(ctx context.Context, conn ssh.Conn, interval time.Durati
 		case <-t.C:
 			_, _, err := conn.SendRequest("keepalive@psh.dev", true, nil)
 			if err != nil {
-				s.logger.Error(err, "keepalive")
+				s.Logger.Error(err, "keepalive")
 				return
 			}
-			s.logger.V(2).Info("keepalive",
+			s.Logger.V(2).Info("keepalive",
 				"host", s.Config.Host,
 			)
 		case <-ctx.Done():
-			s.logger.V(2).Info("keepalive",
+			s.Logger.V(2).Info("keepalive",
 				"status", "exited",
 				"host", s.Config.Host,
 			)
