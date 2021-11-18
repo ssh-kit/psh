@@ -116,7 +116,7 @@ func (c *Config) Validate() error {
 	}
 
 	if c.ServerAliveInterval <= 0 {
-		c.ServerAliveInterval = time.Second
+		c.ServerAliveInterval = 0
 	}
 
 	if c.ServerAliveCountMax <= 1 {
