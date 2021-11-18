@@ -1,22 +1,23 @@
 ssh:
   - host: 192.168.12.1:2222
-    user: sc2048
-    password: 123456
+    user: user
+    password: password
     #identity_file: ~/.ssh/id_rsa
-#    config:
-#      log_level: 2
-#      log_encoding: json
-#      server_alive_interval: 60s
-#      server_alive_count_max: 3
-#      retry_min: 5s
-#      retry_max: 60s
+    config:
+      log_level: 2
+      log_encoding: console
+      server_alive_interval: 60s
+      server_alive_count_max: 3
+      retry_min: 5s
+      retry_max: 60s
     rules:
       - remote: 192.168.12.1:13306
         local: 192.168.12.1:3306
         reverse: true
   - host: 192.168.12.2:2221
-    user: pn18
+    user: user
     password: password
+    #identity_file: ~/.ssh/id_rsa
     config:
       log_level: 2
       log_encoding: console
