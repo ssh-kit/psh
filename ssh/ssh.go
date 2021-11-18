@@ -36,17 +36,6 @@ type SSH struct {
 	// IdentityFile is the path to the private key file to use for authentication.
 	IdentityFile string `yaml:"identity_file,omitempty"`
 
-	// Config is the ssh.ClientConfig to use when connecting to the SSH server.
-	Config Config `yaml:"config"`
-
-	// Rules is the list of rules to use for the SSH server
-	Rules []Rule `yaml:"rules"`
-
-	// Logger is the logger to use for logging
-	Logger logr.Logger
-}
-
-type Config struct {
 	// LogLevel is the log level to use for logging
 	LogLevel int8 `yaml:"log_level,omitempty"`
 
@@ -64,6 +53,12 @@ type Config struct {
 
 	// ServerAliveCountMax is the maximum number of keepalive packets to send
 	ServerAliveCountMax uint32 `yaml:"server_alive_count_max"`
+
+	// Rules is the list of rules to use for the SSH server
+	Rules []Rule `yaml:"rules"`
+
+	// Logger is the logger to use for logging
+	Logger logr.Logger
 }
 
 type Rule struct {
@@ -88,11 +83,11 @@ func (h *Hosts) Run(ctx context.Context) error {
 		go func(s *SSH) {
 			l := h.Logger
 
-			if s.Config.LogLevel != 0 {
-				l.LogLevel = s.Config.LogLevel
+			if s.LogLevel != 0 {
+				l.LogLevel = s.LogLevel
 			}
-			if s.Config.LogEncoding != "" {
-				l.Encoding = s.Config.LogEncoding
+			if s.LogEncoding != "" {
+				l.Encoding = s.LogEncoding
 			}
 
 			s.Logger = l.Build().WithName("ssh")
@@ -103,26 +98,6 @@ func (h *Hosts) Run(ctx context.Context) error {
 			}
 		}(s)
 	}
-	return nil
-}
-
-func (c *Config) Validate() error {
-	if c.RetryMin <= 0 {
-		c.RetryMin = time.Second
-	}
-
-	if c.RetryMax <= 0 {
-		c.RetryMax = time.Minute
-	}
-
-	if c.ServerAliveInterval <= 0 {
-		c.ServerAliveInterval = 0
-	}
-
-	if c.ServerAliveCountMax <= 1 {
-		c.ServerAliveCountMax = 3
-	}
-
 	return nil
 }
 
@@ -141,8 +116,20 @@ func (s *SSH) Validate() error {
 		}
 	}
 
-	if err := s.Config.Validate(); err != nil {
-		return err
+	if s.RetryMin <= 0 {
+		s.RetryMin = time.Second
+	}
+
+	if s.RetryMax <= 0 {
+		s.RetryMax = time.Minute
+	}
+
+	if s.ServerAliveInterval <= 0 {
+		s.ServerAliveInterval = 0
+	}
+
+	if s.ServerAliveCountMax <= 1 {
+		s.ServerAliveCountMax = 3
 	}
 
 	return nil
@@ -152,8 +139,6 @@ func (s *SSH) Run(ctx context.Context) error {
 	if err := s.Validate(); err != nil {
 		return err
 	}
-
-	c := s.Config
 
 	var auth []ssh.AuthMethod
 	if s.IdentityFile != "" {
@@ -185,7 +170,7 @@ func (s *SSH) Run(ctx context.Context) error {
 		conn, err := SSHDialTimeout("tcp",
 			s.Host,
 			config,
-			c.ServerAliveInterval*time.Duration(c.ServerAliveCountMax),
+			s.ServerAliveInterval*time.Duration(s.ServerAliveCountMax),
 		)
 		if err != nil {
 			tempDelay = s.getCurrentTempDelay(tempDelay)
@@ -215,8 +200,8 @@ func (s *SSH) Run(ctx context.Context) error {
 
 		// run remote listen and proxy for each rule
 		childCtx, childCancel := context.WithCancel(ctx)
-		if c.ServerAliveInterval > 0 {
-			go s.keepAlive(childCtx, conn, c.ServerAliveInterval)
+		if s.ServerAliveInterval > 0 {
+			go s.keepAlive(childCtx, conn, s.ServerAliveInterval)
 		}
 
 		go s.run(childCtx, conn)
@@ -245,7 +230,7 @@ func (s *SSH) Run(ctx context.Context) error {
 					continue
 				}
 			}
-			if durationTime > s.Config.RetryMax {
+			if durationTime > s.RetryMax {
 				tempConnDelay = 0
 			}
 		}
@@ -369,12 +354,13 @@ func (s *SSH) keepAlive(ctx context.Context, conn ssh.Conn, interval time.Durati
 
 func (s *SSH) getCurrentTempDelay(tempDelay time.Duration) time.Duration {
 	if tempDelay == 0 {
-		tempDelay = s.Config.RetryMin
+		tempDelay = s.RetryMin
 	} else {
 		tempDelay *= 2
 	}
-	if tempDelay > s.Config.RetryMax {
-		tempDelay = s.Config.RetryMax
+	if tempDelay > s.RetryMax {
+		tempDelay = s.RetryMax
 	}
+
 	return tempDelay
 }

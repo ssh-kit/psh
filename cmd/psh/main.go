@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"path/filepath"
 
 	"github.com/ssh-kit/psh/logger"
 	"go.uber.org/zap/zapcore"
@@ -70,7 +71,7 @@ func (m *Main) ParseFlags(ctx context.Context, args []string) error {
 		fs.BoolVar(&m.version, "version", false, "Show this program version")
 		fs.IntVar(&m.verbose, "verbose", 1, "Show verbose logging")
 		fs.StringVar(&m.encoding, "log-encoding", "console", "Log encoding format use \"json\" or \"console\"")
-		fs.StringVar(&m.config, "config", "psh.yaml", "Config file path")
+		fs.StringVar(&m.config, "config", "./", "Config files path")
 	}
 	return ff.Parse(fs, args,
 		ff.WithEnvVarPrefix("PSH"),
@@ -84,23 +85,49 @@ func (m *Main) Run(ctx context.Context) error {
 		os.Exit(0)
 	}
 
-	yamlFile, err := ioutil.ReadFile(m.config)
-	if err != nil {
-		return fmt.Errorf("read config file: %v", err)
-	}
-	err = yaml.Unmarshal(yamlFile, m.hosts)
-	if err != nil {
-		return fmt.Errorf("unmarshal config file: %v", err)
-	}
-
 	l := logger.NewLogger(int8(m.verbose), m.encoding, zapcore.ISO8601TimeEncoder)
 	m.hosts.Logger = l
-
-	m.Logger = l.Build()
-	m.Logger.WithName("main").Info("started",
+	m.Logger = l.Build().WithName("main")
+	m.Logger.Info("started",
 		"verbose", m.verbose,
 		"config", m.config,
 	)
+
+	fs, err := ioutil.ReadDir(m.config)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range fs {
+		if f.IsDir() {
+			continue
+		}
+
+		suffix := filepath.Ext(f.Name())
+		if suffix != ".yaml" && suffix != ".yml" {
+			continue
+		}
+
+		file := filepath.Join(m.config, f.Name())
+		yamlFile, err := ioutil.ReadFile(file)
+		if err != nil {
+			m.Logger.Error(err, "read file", "file", f.Name())
+			continue
+		}
+
+		s := &ssh.SSH{}
+		if err := yaml.Unmarshal(yamlFile, s); err != nil {
+			m.Logger.Error(err, "unmarshal file", "file", f.Name())
+			continue
+		}
+
+		m.Logger.V(1).Info("unmarshal",
+			"host", s.Host,
+			"file", file,
+		)
+
+		m.hosts.SSH = append(m.hosts.SSH, s)
+	}
 
 	if err := m.hosts.Run(ctx); err != nil {
 		return fmt.Errorf("run hosts: %v", err)
