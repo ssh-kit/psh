@@ -87,9 +87,14 @@ func (h *Hosts) Run(ctx context.Context) error {
 	for _, s := range h.SSH {
 		go func(s *SSH) {
 			l := h.Logger
+
 			if s.Config.LogLevel != 0 {
 				l.LogLevel = s.Config.LogLevel
 			}
+			if s.Config.LogEncoding != "" {
+				l.Encoding = s.Config.LogEncoding
+			}
+
 			s.Logger = l.Build().WithName("ssh")
 
 			if err := s.Run(ctx); err != nil {
@@ -136,13 +141,6 @@ func (s *SSH) Validate() error {
 		}
 	}
 
-	if s.Config.LogLevel != 0 {
-	}
-	//if m.SSH.Config.LogLevel != 0 {
-	//	l.LogLevel = m.SSH.Config.LogLevel
-	//}
-	//m.SSH.Logger = l.Build().WithName("ssh")
-
 	if err := s.Config.Validate(); err != nil {
 		return err
 	}
@@ -154,7 +152,6 @@ func (s *SSH) Run(ctx context.Context) error {
 	if err := s.Validate(); err != nil {
 		return err
 	}
-	//s.Logger = logger
 
 	c := s.Config
 
