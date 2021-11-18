@@ -47,9 +47,9 @@ func main() {
 }
 
 type Main struct {
-	verbose int
-	version bool
-	config  string
+	verbose   int
+	version   bool
+	configDir string
 
 	// Logger settings.
 	encoding string
@@ -71,7 +71,7 @@ func (m *Main) ParseFlags(ctx context.Context, args []string) error {
 		fs.BoolVar(&m.version, "version", false, "Show this program version")
 		fs.IntVar(&m.verbose, "verbose", 1, "Show verbose logging")
 		fs.StringVar(&m.encoding, "log-encoding", "console", "Log encoding format use \"json\" or \"console\"")
-		fs.StringVar(&m.config, "config-dir", "./", "Dir of config files")
+		fs.StringVar(&m.configDir, "config-dir", "./", "Dir of config files")
 	}
 	return ff.Parse(fs, args,
 		ff.WithEnvVarPrefix("PSH"),
@@ -90,10 +90,10 @@ func (m *Main) Run(ctx context.Context) error {
 	m.Logger = l.Build().WithName("main")
 	m.Logger.Info("started",
 		"verbose", m.verbose,
-		"config", m.config,
+		"configDir", m.configDir,
 	)
 
-	fs, err := ioutil.ReadDir(m.config)
+	fs, err := ioutil.ReadDir(m.configDir)
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (m *Main) Run(ctx context.Context) error {
 			continue
 		}
 
-		file := filepath.Join(m.config, f.Name())
+		file := filepath.Join(m.configDir, f.Name())
 		yamlFile, err := ioutil.ReadFile(file)
 		if err != nil {
 			m.Logger.Error(err, "read file", "file", f.Name())

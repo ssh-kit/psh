@@ -19,7 +19,7 @@ psh: fmt vet
 # Run psh
 run: fmt vet
 	go run ./cmd/psh \
-		-config ./.psh \
+		-config-dir ./.psh \
 		-verbose 2
 
 # Run go fmt against code

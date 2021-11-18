@@ -24,10 +24,10 @@ Proxy by SSH => psh
 ```shell
 $ psh -h
 Usage of psh:
-  -config string
-        Config file path (default "psh.yaml")
+  -config-dir string
+        Dir of config files (default "./")
   -log-encoding string
-        Log encoding ( 'json' or 'console' ) (default "console")
+        Log encoding format use "json" or "console" (default "console")
   -verbose int
         Show verbose logging (default 1)
   -version
