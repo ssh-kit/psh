@@ -38,32 +38,30 @@ Usage of psh:
 ## psh.yaml template
 
 ```yaml
-ssh:
-- host: <remote_host>:22
-  user: root
-  # One of [password, identity_file] is required
-  password: password
-  #identity_file: ~/.ssh/id_rsa
-  Config:
-    # log_level is optional
-    log_level: 2
-    # log_encoding decide log print format support console or json (default value is console)
-    log_encoding: console
-    # server_alive_interval default closed
-    server_alive_interval: 60s
-    # server_alive_count_max control read, write timeout with server_alive_interval
-    server_alive_count_max: 3
-    ## retry_min (default value = 1s)
-    #retry_min: 1s
-    ## retry_max (default value = 60s)
-    #retry_max: 60s
-  rules:
-    - remote: "<remote_ip>:27011"
-      local: 127.0.0.1:3000
-      reverse: true
-    - remote: "<remote_ip>:28000"
-      local: 127.0.0.1:3001
-      reverse: true
+host: <remote_host>:22
+user: root
+# One of [password, identity_file] is required
+password: password
+#identity_file: ~/.ssh/id_rsa
+# log_level is optional
+log_level: 2
+# log_encoding decide log print format support console or json (default value is console)
+log_encoding: console
+# server_alive_interval default closed
+server_alive_interval: 60s
+# server_alive_count_max control read, write timeout with server_alive_interval
+server_alive_count_max: 3
+## retry_min (default value = 1s)
+#retry_min: 1s
+## retry_max (default value = 60s)
+#retry_max: 60s
+rules:
+  - remote: "<remote_ip>:27011"
+    local: 127.0.0.1:3000
+    reverse: true
+  - remote: "<remote_ip>:28000"
+    local: 127.0.0.1:3001
+    reverse: true
 ```
 
 ## Guardian port forwarding service

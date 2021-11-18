@@ -1,34 +1,16 @@
-ssh:
-  - host: 192.168.12.1:2222
-    user: user
-    password: password
-    #identity_file: ~/.ssh/id_rsa
-    config:
-      log_level: 2
-      log_encoding: console
-      server_alive_interval: 60s
-      server_alive_count_max: 3
-      retry_min: 5s
-      retry_max: 60s
-    rules:
-      - remote: 192.168.12.1:13306
-        local: 192.168.12.1:3306
-        reverse: true
-  - host: 192.168.12.2:2221
-    user: user
-    password: password
-    #identity_file: ~/.ssh/id_rsa
-    config:
-      log_level: 2
-      log_encoding: console
-      server_alive_interval: 60s
-      server_alive_count_max: 3
-      retry_min: 5s
-      retry_max: 60s
-    rules:
-      - remote: 192.168.12.2:28000
-        local: 127.0.0.1:22
-        reverse: true
-      - remote: 192.168.12.2:27011
-        local: 127.0.0.1:3000
-        reverse: true
+host: 192.168.12.1:22
+user: root
+password: password
+#log_level: 2
+#log_encoding: console
+server_alive_interval: 60s
+#server_alive_count_max: 3
+#retry_min: 5s
+#retry_max: 60s
+rules:
+  - remote: 192.168.12.1:27011
+    local: 127.0.0.1:3000
+    reverse: true
+  - remote: 192.168.12.1:28000
+    local: 127.0.0.1:3001
+    reverse: true
