@@ -13,7 +13,7 @@ type Logger struct {
 	EncodeTime zapcore.TimeEncoder
 }
 
-func NewLogger(logLevel int8, encoding string, encodeTime zapcore.TimeEncoder) *Logger {
+func NewLogger(logLevel int8, encoding string, encodeTime zapcore.TimeEncoder) Logger {
 	switch encoding {
 	case "json":
 	case "console":
@@ -21,7 +21,7 @@ func NewLogger(logLevel int8, encoding string, encodeTime zapcore.TimeEncoder) *
 		encoding = "console"
 	}
 
-	return &Logger{
+	return Logger{
 		LogLevel:   logLevel,
 		Encoding:   encoding,
 		EncodeTime: encodeTime,

@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
-	"time"
 
 	"github.com/ssh-kit/psh/logger"
 	"go.uber.org/zap/zapcore"
@@ -55,13 +54,13 @@ type Main struct {
 	encoding string
 	Logger   logr.Logger
 
-	SSH *ssh.SSH
+	hosts *ssh.Hosts
 }
 
 // NewMain returns a new instance of Main.
 func NewMain() *Main {
 	return &Main{
-		SSH: ssh.NewSSH(),
+		hosts: ssh.NewHosts(),
 	}
 }
 
@@ -89,33 +88,22 @@ func (m *Main) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("read config file: %v", err)
 	}
-	err = yaml.Unmarshal(yamlFile, m.SSH.Config)
+	err = yaml.Unmarshal(yamlFile, m.hosts)
 	if err != nil {
 		return fmt.Errorf("unmarshal config file: %v", err)
 	}
 
 	l := logger.NewLogger(int8(m.verbose), m.encoding, zapcore.ISO8601TimeEncoder)
+	m.hosts.Logger = l
+
 	m.Logger = l.Build()
-	if m.SSH.Config.LogLevel != 0 {
-		l.LogLevel = m.SSH.Config.LogLevel
-	}
-	m.SSH.Logger = l.Build().WithName("ssh")
-
-	if m.SSH.Config.RetryMin <= 0 {
-		m.SSH.Config.RetryMin = time.Second
-	}
-
-	if m.SSH.Config.ServerAliveCountMax <= 1 {
-		m.SSH.Config.ServerAliveCountMax = 3
-	}
-
 	m.Logger.WithName("main").Info("started",
 		"verbose", m.verbose,
 		"config", m.config,
 	)
 
-	if err = m.SSH.Run(ctx); err != nil {
-		return err
+	if err := m.hosts.Run(ctx); err != nil {
+		return fmt.Errorf("run hosts: %v", err)
 	}
 
 	return nil
