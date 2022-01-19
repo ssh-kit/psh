@@ -78,7 +78,7 @@ After=network.target
 
 [Service]
 Restart=on-failure
-ExecStart=/usr/bin/psh -verbose 2 -config /etc/psh/psh.yaml
+ExecStart=/usr/bin/psh -verbose 2 -config-dir /etc/psh
 
 [Install]
 WantedBy=multi-user.target
