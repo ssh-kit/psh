@@ -115,7 +115,7 @@ func (m *Main) Run(ctx context.Context) error {
 			continue
 		}
 
-		s := &ssh.SSH{}
+		s := &ssh.Client{}
 		if err := yaml.Unmarshal(yamlFile, s); err != nil {
 			m.Logger.Error(err, "unmarshal file", "file", f.Name())
 			continue
@@ -126,7 +126,7 @@ func (m *Main) Run(ctx context.Context) error {
 			"file", file,
 		)
 
-		m.hosts.SSH = append(m.hosts.SSH, s)
+		m.hosts.Clients = append(m.hosts.Clients, s)
 	}
 
 	if err := m.hosts.Run(ctx); err != nil {

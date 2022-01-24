@@ -18,13 +18,13 @@ import (
 )
 
 type Hosts struct {
-	SSH []*SSH `yaml:"ssh"`
+	Clients []*Client `yaml:"client"`
 
 	Logger logger.Logger
 }
 
-type SSH struct {
-	// Host is the SSH server to connect to.
+type Client struct {
+	// Host is the ssh server to connect to.
 	Host string `yaml:"host"`
 
 	// User is the user to authenticate as.
@@ -42,19 +42,19 @@ type SSH struct {
 	// LogEncoding is the log output format
 	LogEncoding string `yaml:"log_encoding"`
 
-	// RetryMin is the minimum time to retry connecting to the SSH server
+	// RetryMin is the minimum time to retry connecting to the ssh server
 	RetryMin time.Duration `yaml:"retry_min,omitempty"`
 
-	// RetryMax is the maximum time to retry connecting to the SSH server
+	// RetryMax is the maximum time to retry connecting to the ssh server
 	RetryMax time.Duration `yaml:"retry_max,omitempty"`
 
-	// ServerAliveInterval is the interval to use for the SSH server's keepalive
+	// ServerAliveInterval is the interval to use for the ssh server's keepalive
 	ServerAliveInterval time.Duration `yaml:"server_alive_interval"`
 
 	// ServerAliveCountMax is the maximum number of keepalive packets to send
 	ServerAliveCountMax uint32 `yaml:"server_alive_count_max"`
 
-	// Rules is the list of rules to use for the SSH server
+	// Rules is the list of rules to use for the ssh server
 	Rules []Rule `yaml:"rules"`
 
 	// Logger is the logger to use for logging
@@ -74,13 +74,13 @@ type Rule struct {
 
 func NewHosts() *Hosts {
 	return &Hosts{
-		SSH: []*SSH{},
+		Clients: []*Client{},
 	}
 }
 
 func (h *Hosts) Run(ctx context.Context) error {
-	for _, s := range h.SSH {
-		go func(s *SSH) {
+	for _, s := range h.Clients {
+		go func(s *Client) {
 			l := h.Logger
 
 			if s.LogLevel != 0 {
@@ -93,7 +93,7 @@ func (h *Hosts) Run(ctx context.Context) error {
 			s.Logger = l.Build().WithName("ssh")
 
 			if err := s.Run(ctx); err != nil {
-				s.Logger.Error(err, "failed to run SSH server", "host", s.Host)
+				s.Logger.Error(err, "failed to run Client server", "host", s.Host)
 				return
 			}
 		}(s)
@@ -101,7 +101,7 @@ func (h *Hosts) Run(ctx context.Context) error {
 	return nil
 }
 
-func (s *SSH) Validate() error {
+func (s *Client) Validate() error {
 	if s.IdentityFile == "" && s.Password == "" {
 		return fmt.Errorf("one of [password, identity_file] required")
 	}
@@ -135,7 +135,7 @@ func (s *SSH) Validate() error {
 	return nil
 }
 
-func (s *SSH) Run(ctx context.Context) error {
+func (s *Client) Run(ctx context.Context) error {
 	if err := s.Validate(); err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func (s *SSH) Run(ctx context.Context) error {
 	}
 }
 
-func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
+func (s *Client) run(ctx context.Context, conn *ssh.Client) {
 	var tempDelay time.Duration // how long to sleep on accept failure
 	for _, rule := range s.Rules {
 		if rule.Reverse {
@@ -280,7 +280,7 @@ func (s *SSH) run(ctx context.Context, conn *ssh.Client) {
 
 }
 
-func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rule) {
+func (s *Client) proxy(ctx context.Context, l net.Listener, rule Rule) {
 	dialProxy := tcpproxy.To(rule.Local)
 	dialProxy.DialTimeout = time.Second * 15
 	var tempDelay time.Duration
@@ -328,7 +328,7 @@ func (s *SSH) proxy(ctx context.Context, l net.Listener, rule Rule) {
 	}
 }
 
-func (s *SSH) keepAlive(ctx context.Context, conn ssh.Conn, interval time.Duration) {
+func (s *Client) keepAlive(ctx context.Context, conn ssh.Conn, interval time.Duration) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
 	for {
@@ -352,7 +352,7 @@ func (s *SSH) keepAlive(ctx context.Context, conn ssh.Conn, interval time.Durati
 	}
 }
 
-func (s *SSH) getCurrentTempDelay(tempDelay time.Duration) time.Duration {
+func (s *Client) getCurrentTempDelay(tempDelay time.Duration) time.Duration {
 	if tempDelay == 0 {
 		tempDelay = s.RetryMin
 	} else {
