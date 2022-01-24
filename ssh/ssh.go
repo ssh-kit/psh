@@ -101,48 +101,48 @@ func (h *Hosts) Run(ctx context.Context) error {
 	return nil
 }
 
-func (s *Client) Validate() error {
-	if s.IdentityFile == "" && s.Password == "" {
+func (c *Client) Validate() error {
+	if c.IdentityFile == "" && c.Password == "" {
 		return fmt.Errorf("one of [password, identity_file] required")
 	}
 
-	if s.IdentityFile != "" {
-		if strings.HasPrefix(s.IdentityFile, "~") {
+	if c.IdentityFile != "" {
+		if strings.HasPrefix(c.IdentityFile, "~") {
 			homePath, err := os.UserHomeDir()
 			if err != nil {
 				return err
 			}
-			s.IdentityFile = strings.Replace(s.IdentityFile, "~", homePath, 1)
+			c.IdentityFile = strings.Replace(c.IdentityFile, "~", homePath, 1)
 		}
 	}
 
-	if s.RetryMin <= 0 {
-		s.RetryMin = time.Second
+	if c.RetryMin <= 0 {
+		c.RetryMin = time.Second
 	}
 
-	if s.RetryMax <= 0 {
-		s.RetryMax = time.Minute
+	if c.RetryMax <= 0 {
+		c.RetryMax = time.Minute
 	}
 
-	if s.ServerAliveInterval <= 0 {
-		s.ServerAliveInterval = 0
+	if c.ServerAliveInterval <= 0 {
+		c.ServerAliveInterval = 0
 	}
 
-	if s.ServerAliveCountMax <= 1 {
-		s.ServerAliveCountMax = 3
+	if c.ServerAliveCountMax <= 1 {
+		c.ServerAliveCountMax = 3
 	}
 
 	return nil
 }
 
-func (s *Client) Run(ctx context.Context) error {
-	if err := s.Validate(); err != nil {
+func (c *Client) Run(ctx context.Context) error {
+	if err := c.Validate(); err != nil {
 		return err
 	}
 
 	var auth []ssh.AuthMethod
-	if s.IdentityFile != "" {
-		key, err := ioutil.ReadFile(s.IdentityFile)
+	if c.IdentityFile != "" {
+		key, err := ioutil.ReadFile(c.IdentityFile)
 		if err != nil {
 			return err
 		}
@@ -152,12 +152,12 @@ func (s *Client) Run(ctx context.Context) error {
 		}
 		auth = append(auth, ssh.PublicKeys(singer))
 	}
-	if s.Password != "" {
-		auth = append(auth, ssh.Password(s.Password))
+	if c.Password != "" {
+		auth = append(auth, ssh.Password(c.Password))
 	}
 
 	config := &ssh.ClientConfig{
-		User:            s.User,
+		User:            c.User,
 		Auth:            auth,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         time.Second * 30,
@@ -168,14 +168,14 @@ func (s *Client) Run(ctx context.Context) error {
 	var tempConnDelay time.Duration
 	for {
 		conn, err := SSHDialTimeout("tcp",
-			s.Host,
+			c.Host,
 			config,
-			s.ServerAliveInterval*time.Duration(s.ServerAliveCountMax),
+			c.ServerAliveInterval*time.Duration(c.ServerAliveCountMax),
 		)
 		if err != nil {
-			tempDelay = s.getCurrentTempDelay(tempDelay)
-			s.Logger.Error(err, "dial",
-				"host", s.Host,
+			tempDelay = c.getCurrentTempDelay(tempDelay)
+			c.Logger.Error(err, "dial",
+				"host", c.Host,
 				"retry_in", tempDelay,
 			)
 
@@ -189,8 +189,8 @@ func (s *Client) Run(ctx context.Context) error {
 		tempDelay = 0
 		startTime := time.Now()
 
-		s.Logger.V(1).Info("dial",
-			"host", s.Host,
+		c.Logger.V(1).Info("dial",
+			"host", c.Host,
 		)
 
 		connErr := make(chan error, 1)
@@ -200,11 +200,11 @@ func (s *Client) Run(ctx context.Context) error {
 
 		// run remote listen and proxy for each rule
 		childCtx, childCancel := context.WithCancel(ctx)
-		if s.ServerAliveInterval > 0 {
-			go s.keepAlive(childCtx, conn, s.ServerAliveInterval)
+		if c.ServerAliveInterval > 0 {
+			go c.keepAlive(childCtx, conn, c.ServerAliveInterval)
 		}
 
-		go s.run(childCtx, conn)
+		go c.run(childCtx, conn)
 
 		select {
 		case <-ctx.Done():
@@ -212,8 +212,8 @@ func (s *Client) Run(ctx context.Context) error {
 			conn.Close()
 			return nil
 		case err := <-connErr:
-			s.Logger.Error(err, "connect",
-				"Host", s.Host,
+			c.Logger.Error(err, "connect",
+				"Host", c.Host,
 				"retry_in", tempConnDelay,
 			)
 			childCancel()
@@ -221,7 +221,7 @@ func (s *Client) Run(ctx context.Context) error {
 
 			// avoid too frequent reconnection
 			durationTime := time.Since(startTime)
-			tempConnDelay = s.getCurrentTempDelay(tempConnDelay)
+			tempConnDelay = c.getCurrentTempDelay(tempConnDelay)
 			if durationTime < tempConnDelay {
 				select {
 				case <-ctx.Done():
@@ -230,23 +230,23 @@ func (s *Client) Run(ctx context.Context) error {
 					continue
 				}
 			}
-			if durationTime > s.RetryMax {
+			if durationTime > c.RetryMax {
 				tempConnDelay = 0
 			}
 		}
 	}
 }
 
-func (s *Client) run(ctx context.Context, conn *ssh.Client) {
+func (c *Client) run(ctx context.Context, conn *ssh.Client) {
 	var tempDelay time.Duration // how long to sleep on accept failure
-	for _, rule := range s.Rules {
+	for _, rule := range c.Rules {
 		if rule.Reverse {
 			for {
 				listen, err := conn.Listen("tcp", rule.Remote)
 				if err != nil {
-					tempDelay = s.getCurrentTempDelay(tempDelay)
+					tempDelay = c.getCurrentTempDelay(tempDelay)
 
-					s.Logger.Error(err, "listen",
+					c.Logger.Error(err, "listen",
 						"reverse", rule.Reverse,
 						"remote", rule.Remote,
 						"retry_in", tempDelay,
@@ -254,7 +254,7 @@ func (s *Client) run(ctx context.Context, conn *ssh.Client) {
 
 					select {
 					case <-ctx.Done():
-						s.Logger.V(2).Info("listen",
+						c.Logger.V(2).Info("listen",
 							"status", "canceled",
 							"reverse", rule.Reverse,
 							"remote", rule.Remote,
@@ -266,13 +266,13 @@ func (s *Client) run(ctx context.Context, conn *ssh.Client) {
 				}
 				tempDelay = 0
 
-				s.Logger.V(1).Info("listen",
+				c.Logger.V(1).Info("listen",
 					"reverse", rule.Reverse,
 					"remote", rule.Remote,
 				)
 
 				// accept message and proxy
-				go s.proxy(ctx, listen, rule)
+				go c.proxy(ctx, listen, rule)
 				break
 			}
 		}
@@ -280,18 +280,18 @@ func (s *Client) run(ctx context.Context, conn *ssh.Client) {
 
 }
 
-func (s *Client) proxy(ctx context.Context, l net.Listener, rule Rule) {
+func (c *Client) proxy(ctx context.Context, l net.Listener, rule Rule) {
 	dialProxy := tcpproxy.To(rule.Local)
 	dialProxy.DialTimeout = time.Second * 15
 	var tempDelay time.Duration
 	for {
 		accept, err := l.Accept()
 		if err != nil {
-			tempDelay = s.getCurrentTempDelay(tempDelay)
+			tempDelay = c.getCurrentTempDelay(tempDelay)
 
 			select {
 			case <-ctx.Done():
-				s.Logger.Error(err, "accept",
+				c.Logger.Error(err, "accept",
 					"status", "exited",
 					"remote", rule.Remote,
 					"local", rule.Local,
@@ -299,7 +299,7 @@ func (s *Client) proxy(ctx context.Context, l net.Listener, rule Rule) {
 				)
 				return
 			case <-time.After(tempDelay):
-				s.Logger.Error(err, "accept",
+				c.Logger.Error(err, "accept",
 					"remote", rule.Remote,
 					"local", rule.Local,
 					"reverse", rule.Reverse,
@@ -310,7 +310,7 @@ func (s *Client) proxy(ctx context.Context, l net.Listener, rule Rule) {
 		}
 		tempDelay = 0
 
-		s.Logger.V(2).Info("forward",
+		c.Logger.V(2).Info("forward",
 			"status", "start",
 			"reverse", rule.Reverse,
 			"remote", rule.Remote,
@@ -318,7 +318,7 @@ func (s *Client) proxy(ctx context.Context, l net.Listener, rule Rule) {
 		)
 		go func() {
 			dialProxy.HandleConn(accept)
-			s.Logger.V(2).Info("forward",
+			c.Logger.V(2).Info("forward",
 				"status", "end",
 				"reverse", rule.Reverse,
 				"remote", rule.Remote,
@@ -328,7 +328,7 @@ func (s *Client) proxy(ctx context.Context, l net.Listener, rule Rule) {
 	}
 }
 
-func (s *Client) keepAlive(ctx context.Context, conn ssh.Conn, interval time.Duration) {
+func (c *Client) keepAlive(ctx context.Context, conn ssh.Conn, interval time.Duration) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
 	for {
@@ -336,30 +336,30 @@ func (s *Client) keepAlive(ctx context.Context, conn ssh.Conn, interval time.Dur
 		case <-t.C:
 			_, _, err := conn.SendRequest("keepalive@psh.dev", true, nil)
 			if err != nil {
-				s.Logger.Error(err, "keepalive")
+				c.Logger.Error(err, "keepalive")
 				return
 			}
-			s.Logger.V(2).Info("keepalive",
-				"host", s.Host,
+			c.Logger.V(2).Info("keepalive",
+				"host", c.Host,
 			)
 		case <-ctx.Done():
-			s.Logger.V(2).Info("keepalive",
+			c.Logger.V(2).Info("keepalive",
 				"status", "exited",
-				"host", s.Host,
+				"host", c.Host,
 			)
 			return
 		}
 	}
 }
 
-func (s *Client) getCurrentTempDelay(tempDelay time.Duration) time.Duration {
+func (c *Client) getCurrentTempDelay(tempDelay time.Duration) time.Duration {
 	if tempDelay == 0 {
-		tempDelay = s.RetryMin
+		tempDelay = c.RetryMin
 	} else {
 		tempDelay *= 2
 	}
-	if tempDelay > s.RetryMax {
-		tempDelay = s.RetryMax
+	if tempDelay > c.RetryMax {
+		tempDelay = c.RetryMax
 	}
 
 	return tempDelay
