@@ -175,7 +175,9 @@ func (c *Client) Run(ctx context.Context) error {
 		if err != nil {
 			tempDelay = c.getCurrentTempDelay(tempDelay)
 			c.Logger.Error(err, "dial",
+				"status", "retry",
 				"host", c.Host,
+				"user", c.User,
 				"retry_in", tempDelay,
 			)
 
@@ -190,7 +192,9 @@ func (c *Client) Run(ctx context.Context) error {
 		startTime := time.Now()
 
 		c.Logger.V(1).Info("dial",
+			"status", "ok",
 			"host", c.Host,
+			"user", c.User,
 		)
 
 		connErr := make(chan error, 1)
@@ -213,7 +217,9 @@ func (c *Client) Run(ctx context.Context) error {
 			return nil
 		case err := <-connErr:
 			c.Logger.Error(err, "connect",
-				"Host", c.Host,
+				"status", "retry",
+				"host", c.Host,
+				"user", c.User,
 				"retry_in", tempConnDelay,
 			)
 			childCancel()
@@ -247,8 +253,11 @@ func (c *Client) run(ctx context.Context, conn *ssh.Client) {
 					tempDelay = c.getCurrentTempDelay(tempDelay)
 
 					c.Logger.Error(err, "listen",
-						"reverse", rule.Reverse,
+						"status", "retry",
+						"host", c.Host,
+						"user", c.User,
 						"remote", rule.Remote,
+						"reverse", rule.Reverse,
 						"retry_in", tempDelay,
 					)
 
@@ -256,8 +265,10 @@ func (c *Client) run(ctx context.Context, conn *ssh.Client) {
 					case <-ctx.Done():
 						c.Logger.V(2).Info("listen",
 							"status", "canceled",
-							"reverse", rule.Reverse,
+							"host", c.Host,
+							"user", c.User,
 							"remote", rule.Remote,
+							"reverse", rule.Reverse,
 						)
 						return
 					case <-time.After(tempDelay):
@@ -267,8 +278,11 @@ func (c *Client) run(ctx context.Context, conn *ssh.Client) {
 				tempDelay = 0
 
 				c.Logger.V(1).Info("listen",
-					"reverse", rule.Reverse,
+					"status", "ok",
+					"host", c.Host,
+					"user", c.User,
 					"remote", rule.Remote,
+					"reverse", rule.Reverse,
 				)
 
 				// accept message and proxy
@@ -292,7 +306,9 @@ func (c *Client) proxy(ctx context.Context, l net.Listener, rule Rule) {
 			select {
 			case <-ctx.Done():
 				c.Logger.Error(err, "accept",
-					"status", "exited",
+					"status", "cancel",
+					"host", c.Host,
+					"user", c.User,
 					"remote", rule.Remote,
 					"local", rule.Local,
 					"reverse", rule.Reverse,
@@ -300,6 +316,9 @@ func (c *Client) proxy(ctx context.Context, l net.Listener, rule Rule) {
 				return
 			case <-time.After(tempDelay):
 				c.Logger.Error(err, "accept",
+					"status", "retry",
+					"host", c.Host,
+					"user", c.User,
 					"remote", rule.Remote,
 					"local", rule.Local,
 					"reverse", rule.Reverse,
@@ -312,17 +331,21 @@ func (c *Client) proxy(ctx context.Context, l net.Listener, rule Rule) {
 
 		c.Logger.V(2).Info("forward",
 			"status", "start",
-			"reverse", rule.Reverse,
+			"host", c.Host,
+			"user", c.User,
 			"remote", rule.Remote,
 			"local", rule.Local,
+			"reverse", rule.Reverse,
 		)
 		go func() {
 			dialProxy.HandleConn(accept)
 			c.Logger.V(2).Info("forward",
 				"status", "end",
-				"reverse", rule.Reverse,
+				"host", c.Host,
+				"user", c.User,
 				"remote", rule.Remote,
 				"local", rule.Local,
+				"reverse", rule.Reverse,
 			)
 		}()
 	}
@@ -334,18 +357,21 @@ func (c *Client) keepAlive(ctx context.Context, conn ssh.Conn, interval time.Dur
 	for {
 		select {
 		case <-t.C:
-			_, _, err := conn.SendRequest("keepalive@psh.dev", true, nil)
+			ok, _, err := conn.SendRequest("keepalive@psh.dev", true, nil)
 			if err != nil {
 				c.Logger.Error(err, "keepalive")
 				return
 			}
 			c.Logger.V(2).Info("keepalive",
+				"status", ok,
 				"host", c.Host,
+				"user", c.User,
 			)
 		case <-ctx.Done():
 			c.Logger.V(2).Info("keepalive",
-				"status", "exited",
+				"status", "exit",
 				"host", c.Host,
+				"user", c.User,
 			)
 			return
 		}
