@@ -340,10 +340,21 @@ func (c *Client) run(ctx context.Context, conn *ssh.Client) {
 
 func (c *Client) proxy(ctx context.Context, source net.Listener, destination string, rule Rule, dialFunc func(ctx context.Context, network, address string) (net.Conn, error)) {
 	dialProxy := tcpproxy.To(destination)
+	dialProxy.DialTimeout = time.Second * 15
 	if !rule.Reverse {
 		dialProxy.DialContext = dialFunc
 	}
-	dialProxy.DialTimeout = time.Second * 15
+
+	dialProxy.OnDialError = func(src net.Conn, dstDialErr error) {
+		c.Logger.Error(dstDialErr, "forward",
+			"status", "failure",
+			"host", c.Host,
+			"user", c.User,
+			"remote", rule.Remote,
+			"local", rule.Local,
+			"reverse", rule.Reverse,
+		)
+	}
 
 	var tempDelay time.Duration
 	for {

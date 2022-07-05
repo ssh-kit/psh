@@ -3,7 +3,7 @@ user: root
 password: password
 #log_level: 2
 #log_encoding: console
-server_alive_interval: 60s
+#server_alive_interval: 60s
 #server_alive_count_max: 3
 #retry_min: 5s
 #retry_max: 60s
