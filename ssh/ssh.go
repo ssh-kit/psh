@@ -286,7 +286,51 @@ func (c *Client) run(ctx context.Context, conn *ssh.Client) {
 				)
 
 				// accept message and proxy
-				go c.proxy(ctx, listen, rule.Local, rule.Reverse)
+				go c.proxy(ctx, listen, rule.Local, rule.Reverse, nil)
+				break
+			}
+		} else {
+			for {
+				listen, err := net.Listen("tcp", rule.Local)
+				if err != nil {
+					tempDelay = c.getCurrentTempDelay(tempDelay)
+
+					c.Logger.Error(err, "listen",
+						"status", "retry",
+						"host", c.Host,
+						"user", c.User,
+						"local", rule.Local,
+						"reverse", rule.Reverse,
+						"retry_in", tempDelay,
+					)
+
+					select {
+					case <-ctx.Done():
+						c.Logger.V(2).Info("listen",
+							"status", "canceled",
+							"host", c.Host,
+							"user", c.User,
+							"local", rule.Local,
+							"reverse", rule.Reverse,
+						)
+						return
+					case <-time.After(tempDelay):
+						continue
+					}
+				}
+				tempDelay = 0
+
+				c.Logger.V(1).Info("listen",
+					"status", "ok",
+					"host", c.Host,
+					"user", c.User,
+					"local", rule.Local,
+					"reverse", rule.Reverse,
+				)
+				// accept message and proxy
+				go c.proxy(ctx, listen, rule.Remote, rule.Reverse, func(ctx context.Context, network, address string) (net.Conn, error) {
+					return conn.Dial(network, address)
+				})
 				break
 			}
 		}
@@ -294,10 +338,15 @@ func (c *Client) run(ctx context.Context, conn *ssh.Client) {
 
 }
 
-func (c *Client) proxy(ctx context.Context, source net.Listener, destination string, reverse bool) {
+func (c *Client) proxy(ctx context.Context, source net.Listener, destination string, reverse bool, dialFunc func(ctx context.Context, network, address string) (net.Conn, error)) {
 	sourceAddr := source.Addr().String()
+
 	dialProxy := tcpproxy.To(destination)
+	if !reverse {
+		dialProxy.DialContext = dialFunc
+	}
 	dialProxy.DialTimeout = time.Second * 15
+
 	var tempDelay time.Duration
 	for {
 		accept, err := source.Accept()
