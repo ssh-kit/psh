@@ -286,7 +286,7 @@ func (c *Client) run(ctx context.Context, conn *ssh.Client) {
 				)
 
 				// accept message and proxy
-				go c.proxy(ctx, listen, rule.Local, rule.Reverse, nil)
+				go c.proxy(ctx, listen, rule.Local, rule, nil)
 				break
 			}
 		} else {
@@ -328,7 +328,7 @@ func (c *Client) run(ctx context.Context, conn *ssh.Client) {
 					"reverse", rule.Reverse,
 				)
 				// accept message and proxy
-				go c.proxy(ctx, listen, rule.Remote, rule.Reverse, func(ctx context.Context, network, address string) (net.Conn, error) {
+				go c.proxy(ctx, listen, rule.Remote, rule, func(ctx context.Context, network, address string) (net.Conn, error) {
 					return conn.Dial(network, address)
 				})
 				break
@@ -338,11 +338,9 @@ func (c *Client) run(ctx context.Context, conn *ssh.Client) {
 
 }
 
-func (c *Client) proxy(ctx context.Context, source net.Listener, destination string, reverse bool, dialFunc func(ctx context.Context, network, address string) (net.Conn, error)) {
-	sourceAddr := source.Addr().String()
-
+func (c *Client) proxy(ctx context.Context, source net.Listener, destination string, rule Rule, dialFunc func(ctx context.Context, network, address string) (net.Conn, error)) {
 	dialProxy := tcpproxy.To(destination)
-	if !reverse {
+	if !rule.Reverse {
 		dialProxy.DialContext = dialFunc
 	}
 	dialProxy.DialTimeout = time.Second * 15
@@ -359,9 +357,9 @@ func (c *Client) proxy(ctx context.Context, source net.Listener, destination str
 					"status", "cancel",
 					"host", c.Host,
 					"user", c.User,
-					"source", sourceAddr,
-					"destination", destination,
-					"reverse", reverse,
+					"remote", rule.Remote,
+					"local", rule.Local,
+					"reverse", rule.Reverse,
 				)
 				return
 			case <-time.After(tempDelay):
@@ -369,9 +367,9 @@ func (c *Client) proxy(ctx context.Context, source net.Listener, destination str
 					"status", "retry",
 					"host", c.Host,
 					"user", c.User,
-					"source", sourceAddr,
-					"destination", destination,
-					"reverse", reverse,
+					"remote", rule.Remote,
+					"local", rule.Local,
+					"reverse", rule.Reverse,
 					"retry_in", tempDelay,
 				)
 				continue
@@ -383,9 +381,9 @@ func (c *Client) proxy(ctx context.Context, source net.Listener, destination str
 			"status", "start",
 			"host", c.Host,
 			"user", c.User,
-			"source", sourceAddr,
-			"destination", destination,
-			"reverse", reverse,
+			"remote", rule.Remote,
+			"local", rule.Local,
+			"reverse", rule.Reverse,
 		)
 		go func() {
 			dialProxy.HandleConn(accept)
@@ -393,9 +391,9 @@ func (c *Client) proxy(ctx context.Context, source net.Listener, destination str
 				"status", "end",
 				"host", c.Host,
 				"user", c.User,
-				"source", sourceAddr,
-				"destination", destination,
-				"reverse", reverse,
+				"remote", rule.Remote,
+				"local", rule.Local,
+				"reverse", rule.Reverse,
 			)
 		}()
 	}
