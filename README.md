@@ -18,7 +18,7 @@ Proxy by SSH => psh
   You can use it by following ways:
 
 - Define config file `psh.yaml` according to your own situation.
-- You can also rename config file and by `psh -config <file_name>` to use it.
+- You can also rename config file directory and by `psh -config-dir <dir_path>` to use it.
 - Run binary file `psh` on macOS, Linux. (Windows is `psh.exe`)
 - List more help messages by `psh -h`.
 ```shell
