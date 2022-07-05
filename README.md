@@ -37,6 +37,8 @@ Usage of psh:
 
 ## psh.yaml template
 
+* if `rules.reverse` value is **true** means port forward reverse
+
 ```yaml
 host: <remote_host>:22
 user: root
@@ -61,8 +63,9 @@ rules:
     reverse: true
   - remote: "<remote_ip>:28000"
     local: 127.0.0.1:3001
-    reverse: true
+    # reverse: true
 ```
+
 
 ## Guardian port forwarding service
 
