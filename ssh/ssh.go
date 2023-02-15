@@ -244,54 +244,58 @@ func (c *Client) Run(ctx context.Context) error {
 }
 
 func (c *Client) run(ctx context.Context, conn *ssh.Client) {
-	var tempDelay time.Duration // how long to sleep on accept failure
 	for _, rule := range c.Rules {
 		if rule.Reverse {
-			for {
-				listen, err := conn.Listen("tcp", rule.Remote)
-				if err != nil {
-					tempDelay = c.getCurrentTempDelay(tempDelay)
+			go c.listenRemote(ctx, conn, rule)
+		} else {
+			go c.listenLocal(ctx, conn, rule)
+		}
+	}
+}
 
-					c.Logger.Error(err, "listen",
-						"status", "retry",
-						"host", c.Host,
-						"user", c.User,
-						"remote", rule.Remote,
-						"reverse", rule.Reverse,
-						"retry_in", tempDelay,
-					)
+func (c Client) listenRemote(ctx context.Context, conn *ssh.Client, rule Rule) {
+	var tempDelay time.Duration // how long to sleep on accept failure
+	for {
+		listen, err := conn.Listen("tcp", rule.Remote)
+		if err != nil {
+			tempDelay = c.getCurrentTempDelay(tempDelay)
 
-					select {
-					case <-ctx.Done():
-						c.Logger.V(2).Info("listen",
-							"status", "canceled",
-							"host", c.Host,
-							"user", c.User,
-							"remote", rule.Remote,
-							"reverse", rule.Reverse,
-						)
-						return
-					case <-time.After(tempDelay):
-						continue
-					}
-				}
-				tempDelay = 0
+			c.Logger.Error(err, "listen",
+				"status", "retry",
+				"host", c.Host,
+				"user", c.User,
+				"remote", rule.Remote,
+				"reverse", rule.Reverse,
+				"retry_in", tempDelay,
+			)
 
-				c.Logger.V(1).Info("listen",
-					"status", "ok",
+			select {
+			case <-ctx.Done():
+				c.Logger.V(2).Info("listen",
+					"status", "canceled",
 					"host", c.Host,
 					"user", c.User,
 					"remote", rule.Remote,
 					"reverse", rule.Reverse,
 				)
-
-				// accept message and proxy
-				go c.proxy(ctx, listen, rule.Local, rule, nil)
-				break
+				return
+			case <-time.After(tempDelay):
+				continue
 			}
-		} else {
-			go c.listenLocal(ctx, conn, rule)
 		}
+		tempDelay = 0
+
+		c.Logger.V(1).Info("listen",
+			"status", "ok",
+			"host", c.Host,
+			"user", c.User,
+			"remote", rule.Remote,
+			"reverse", rule.Reverse,
+		)
+
+		// accept message and proxy
+		go c.proxy(ctx, listen, rule.Local, rule, nil)
+		break
 	}
 }
 

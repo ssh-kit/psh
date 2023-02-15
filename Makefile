@@ -4,7 +4,7 @@ export GOPROXY ?= https://goproxy.cn
 GIT_VERSION := $(shell git describe --always --tags)
 BASE_PACKAGE_NAME := github.com/ssh-kit/psh
 DEFAULT_LDFLAGS := "-X $(BASE_PACKAGE_NAME).Version=$(GIT_VERSION)"
-IMG := hypnostsang/psh:$(GIT_VERSION)
+IMG := hub.paratera.com/asher/psh:$(GIT_VERSION)
 
 all:
 
@@ -32,7 +32,7 @@ vet:
 
 # Build the docker image
 docker-build: test
-	docker build . -t ${IMG}
+	docker build --platform linux/amd64 . -t ${IMG}
 
 # Push the docker image
 docker-push:
