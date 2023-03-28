@@ -37,7 +37,7 @@ func (c *Conn) Write(b []byte) (int, error) {
 	return c.Conn.Write(b)
 }
 
-func SSHDialTimeout(network, addr string, config *ssh.ClientConfig, timeout time.Duration) (*ssh.Client, error) {
+func DialTimeout(network, addr string, config *ssh.ClientConfig, timeout time.Duration) (*ssh.Client, error) {
 	conn, err := net.DialTimeout(network, addr, timeout)
 	if err != nil {
 		return nil, err
